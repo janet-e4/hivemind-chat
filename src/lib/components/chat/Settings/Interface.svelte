@@ -77,6 +77,7 @@
 
 	let showFloatingActionButtons = true;
 	let floatingActionButtons = null;
+	let showConversationMinimap = true;
 
 	let imageCompression = false;
 	let imageCompressionSize = {
@@ -263,6 +264,7 @@
 
 		showFloatingActionButtons = $settings?.showFloatingActionButtons ?? true;
 		floatingActionButtons = $settings?.floatingActionButtons ?? null;
+		showConversationMinimap = $settings?.showConversationMinimap ?? true;
 
 		imageCompression = $settings?.imageCompression ?? false;
 		imageCompressionSize = $settings?.imageCompressionSize ?? { width: '', height: '' };
@@ -1110,6 +1112,25 @@
 							bind:state={showFloatingActionButtons}
 							on:change={() => {
 								saveSettings({ showFloatingActionButtons });
+							}}
+						/>
+					</div>
+				</div>
+			</div>
+
+			<div>
+				<div class=" py-0.5 flex w-full justify-between">
+					<label id="conversation-minimap-label" class=" self-center text-xs">
+						{$i18n.t('Conversation Quick Browse')}
+					</label>
+
+					<div class="flex items-center gap-3 p-1">
+						<Switch
+							ariaLabelledbyId="conversation-minimap-label"
+							tooltip={true}
+							bind:state={showConversationMinimap}
+							on:change={() => {
+								saveSettings({ showConversationMinimap });
 							}}
 						/>
 					</div>

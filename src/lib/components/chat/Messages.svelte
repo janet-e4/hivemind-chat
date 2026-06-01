@@ -164,6 +164,85 @@
 		}
 	};
 
+	export const ensureMessageRendered = async (messageId: string) => {
+		if (!history?.messages?.[messageId]) {
+			return false;
+		}
+
+		if (!messages.some((message) => message.id === messageId)) {
+			messagesCount = null;
+			buildMessages();
+			await tick();
+		}
+
+		return messages.some((message) => message.id === messageId);
+	};
+
+	export const scrollToMessage = async (
+		messageId: string,
+		options: ScrollIntoViewOptions = { behavior: 'smooth', block: 'start' }
+	) => {
+		const rendered = await ensureMessageRendered(messageId);
+		if (!rendered) {
+			return false;
+		}
+
+		const messageElement = document.getElementById(`message-${messageId}`);
+		if (!messageElement) {
+			return false;
+		}
+
+		messageElement.scrollIntoView(options);
+		return true;
+	};
+
+	const getMessageElement = (messageId: string) => {
+		return document.getElementById(`message-${messageId}`);
+	};
+
+	const getMessageActionElement = (messageId: string, actionId: string) => {
+		const messageElement = getMessageElement(messageId);
+		return messageElement?.querySelector(
+			`[data-message-action="${CSS.escape(actionId)}"]`
+		) as HTMLElement | null;
+	};
+
+	export const getMessageActionState = (messageId: string) => {
+		const message = history?.messages?.[messageId];
+		if (!message) {
+			return [];
+		}
+
+		const messageElement = getMessageElement(messageId);
+		if (!messageElement) {
+			return [];
+		}
+
+		return Array.from(messageElement.querySelectorAll('[data-message-action]')).map((element) => ({
+			id: element.getAttribute('data-message-action'),
+			label: element.getAttribute('aria-label') || element.getAttribute('title') || '',
+			destructive: element.getAttribute('data-message-action') === 'delete',
+			disabled: (element as HTMLButtonElement).disabled ?? false
+		}));
+	};
+
+	export const runMessageAction = async (messageId: string, actionId: string) => {
+		const rendered = await scrollToMessage(messageId, { behavior: 'smooth', block: 'center' });
+		if (!rendered) {
+			return false;
+		}
+
+		await tick();
+		const actionElement = getMessageActionElement(messageId, actionId);
+		if (!actionElement || (actionElement as HTMLButtonElement).disabled) {
+			return false;
+		}
+
+		actionElement.focus({ preventScroll: true });
+		actionElement.click();
+		return true;
+	};
+
 	const updateChat = async () => {
 		if (!$temporaryChatEnabled) {
 			history = history;

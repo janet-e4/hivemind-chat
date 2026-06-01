@@ -900,6 +900,7 @@
 								<div class="flex self-center min-w-fit" dir="ltr">
 									<button
 										aria-label={$i18n.t('Previous message')}
+										data-message-action="previous"
 										class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
 										on:click={() => {
 											showPreviousMessage(message);
@@ -973,6 +974,7 @@
 											showNextMessage(message);
 										}}
 										aria-label={$i18n.t('Next message')}
+										data-message-action="next"
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -999,6 +1001,7 @@
 										<Tooltip content={$i18n.t('Edit')} placement="bottom">
 											<button
 												aria-label={$i18n.t('Edit')}
+												data-message-action="edit"
 												class="{isLastMessage || ($settings?.highContrastMode ?? false)
 													? 'visible'
 													: 'invisible group-hover:visible'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
@@ -1029,6 +1032,7 @@
 								<Tooltip content={$i18n.t('Copy')} placement="bottom">
 									<button
 										aria-label={$i18n.t('Copy')}
+										data-message-action="copy"
 										class="{isLastMessage || ($settings?.highContrastMode ?? false)
 											? 'visible'
 											: 'invisible group-hover:visible'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition copy-response-button"
@@ -1058,6 +1062,7 @@
 									<Tooltip content={$i18n.t('Read Aloud')} placement="bottom">
 										<button
 											aria-label={$i18n.t('Read Aloud')}
+											data-message-action="speak"
 											id="speak-button-{message.id}"
 											class="{isLastMessage || ($settings?.highContrastMode ?? false)
 												? 'visible'
@@ -1159,6 +1164,8 @@
 									>
 										<button
 											aria-hidden="true"
+											aria-label={$i18n.t('Info')}
+											data-message-action="info"
 											class=" {isLastMessage || ($settings?.highContrastMode ?? false)
 												? 'visible'
 												: 'invisible group-hover:visible'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition whitespace-pre-wrap"
@@ -1191,6 +1198,7 @@
 										<Tooltip content={$i18n.t('Good Response')} placement="bottom">
 											<button
 												aria-label={$i18n.t('Good Response')}
+												data-message-action="good"
 												class="{isLastMessage || ($settings?.highContrastMode ?? false)
 													? 'visible'
 													: 'invisible group-hover:visible'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg {(
@@ -1229,6 +1237,7 @@
 										<Tooltip content={$i18n.t('Bad Response')} placement="bottom">
 											<button
 												aria-label={$i18n.t('Bad Response')}
+												data-message-action="bad"
 												class="{isLastMessage || ($settings?.highContrastMode ?? false)
 													? 'visible'
 													: 'invisible group-hover:visible'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg {(
@@ -1269,6 +1278,7 @@
 										<Tooltip content={$i18n.t('Continue Response')} placement="bottom">
 											<button
 												aria-label={$i18n.t('Continue Response')}
+												data-message-action="continue"
 												type="button"
 												id="continue-response-button"
 												class="{isLastMessage || ($settings?.highContrastMode ?? false)
@@ -1306,6 +1316,8 @@
 										{#if $settings?.regenerateMenu ?? true}
 											<button
 												type="button"
+												aria-label={$i18n.t('Regenerate')}
+												data-message-action="regenerate"
 												class="hidden regenerate-response-button"
 												on:click={() => {
 													showRateComment = false;
@@ -1346,6 +1358,7 @@
 												<Tooltip content={$i18n.t('Regenerate')} placement="bottom">
 													<div
 														aria-label={$i18n.t('Regenerate')}
+														data-message-action="regenerate-menu"
 														class="{isLastMessage
 															? 'visible'
 															: 'invisible group-hover:visible'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
@@ -1373,6 +1386,7 @@
 												<button
 													type="button"
 													aria-label={$i18n.t('Regenerate')}
+													data-message-action="regenerate"
 													class="{isLastMessage
 														? 'visible'
 														: 'invisible group-hover:visible'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition regenerate-response-button"
@@ -1419,6 +1433,7 @@
 												<button
 													type="button"
 													aria-label={$i18n.t('Delete')}
+													data-message-action="delete"
 													id="delete-response-button"
 													class="{isLastMessage || ($settings?.highContrastMode ?? false)
 														? 'visible'
@@ -1456,6 +1471,7 @@
 											<button
 												type="button"
 												aria-label={action.name}
+												data-message-action={`model-action-${action.id}`}
 												class="{isLastMessage || ($settings?.highContrastMode ?? false)
 													? 'visible'
 													: 'invisible group-hover:visible'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"

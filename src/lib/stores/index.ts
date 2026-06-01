@@ -233,6 +233,7 @@ type Settings = {
 	renderMarkdownInUserMessages?: boolean;
 	renderMarkdownInAssistantMessages?: boolean;
 	recentEmojis?: string[];
+	showConversationMinimap?: boolean;
 	pinnedMenuItems?: string[];
 
 	system?: string;

@@ -102,6 +102,7 @@
 	import Banner from '../common/Banner.svelte';
 	import MessageInput from '$lib/components/chat/MessageInput.svelte';
 	import Messages from '$lib/components/chat/Messages.svelte';
+	import ConversationMinimap from '$lib/components/chat/ConversationMinimap.svelte';
 	import Navbar from '$lib/components/chat/Navbar.svelte';
 	import ChatControls from './ChatControls.svelte';
 	import EventConfirmDialog from '../common/ConfirmDialog.svelte';
@@ -3125,6 +3126,12 @@
 									/>
 								</div>
 							</div>
+
+							<ConversationMinimap
+								{history}
+								{messagesRef}
+								scrollContainerElement={messagesContainerElement}
+							/>
 
 							<div class=" pb-2 {dragged ? 'z-0' : 'z-10'}">
 								<MessageInput
