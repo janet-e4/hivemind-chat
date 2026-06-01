@@ -28,7 +28,7 @@ FROM --platform=$BUILDPLATFORM node:22-alpine3.20 AS build
 ARG BUILD_HASH
 
 # Set Node.js options (heap limit Allocation failed - JavaScript heap out of memory)
-# ENV NODE_OPTIONS="--max-old-space-size=4096"
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 WORKDIR /app
 
@@ -77,9 +77,7 @@ ENV OLLAMA_BASE_URL="/ollama" \
     OPENAI_API_BASE_URL=""
 
 ## API Key and Security Config ##
-ENV OPENAI_API_KEY="" \
-    WEBUI_SECRET_KEY="" \
-    SCARF_NO_ANALYTICS=true \
+ENV SCARF_NO_ANALYTICS=true \
     DO_NOT_TRACK=true \
     ANONYMIZED_TELEMETRY=false
 
