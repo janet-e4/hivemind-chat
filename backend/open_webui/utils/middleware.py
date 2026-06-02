@@ -13,6 +13,7 @@ import sys
 import textwrap
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -40,6 +41,7 @@ from open_webui.env import (
     RAG_SYSTEM_CONTEXT,
 )
 from open_webui.models.chats import Chats
+from open_webui.models.files import Files
 from open_webui.models.folders import Folders
 from open_webui.models.functions import Functions
 from open_webui.models.models import Models
@@ -73,8 +75,10 @@ from open_webui.socket.main import (
     get_event_emitter,
 )
 from open_webui.utils.access_control import has_connection_access, has_permission
-from open_webui.utils.access_control.files import get_accessible_folder_files
+from open_webui.storage.provider import Storage
+from open_webui.utils.access_control.files import get_accessible_folder_files, has_access_to_file
 from open_webui.utils.chat import generate_chat_completion
+from open_webui.utils.models import _is_hivemind_model
 from open_webui.utils.code_interpreter import execute_code_jupyter
 from open_webui.utils.files import (
     convert_markdown_base64_images,
@@ -145,6 +149,9 @@ DEFAULT_REASONING_TAGS = [
     ('<|begin_of_thought|>', '<|end_of_thought|>'),
     ('◁think▷', '◁/think▷'),
 ]
+HIVEMIND_INLINE_FILE_MAX_BYTES = int(
+    os.environ.get('HIVEMIND_INLINE_FILE_MAX_BYTES', str(75 * 1024 * 1024))
+)
 DEFAULT_SOLUTION_TAGS = [('<|begin_of_solution|>', '<|end_of_solution|>')]
 DEFAULT_CODE_INTERPRETER_TAGS = [('<code_interpreter>', '</code_interpreter>')]
 
@@ -1753,6 +1760,143 @@ async def add_file_context(messages: list, chat_id: str, user) -> list:
     return messages
 
 
+def _hivemind_file_content_part(file_item: dict, content_type: str | None, data_url: str) -> dict:
+    name = file_item.get('name') or file_item.get('filename') or file_item.get('id') or 'attachment'
+    content_type = content_type or file_item.get('content_type') or 'application/octet-stream'
+
+    if content_type.startswith('audio/'):
+        return {
+            'type': 'input_audio',
+            'filename': name,
+            'data': data_url,
+        }
+    if content_type.startswith('video/'):
+        return {
+            'type': 'input_video',
+            'filename': name,
+            'data': data_url,
+        }
+    return {
+        'type': 'input_file',
+        'filename': name,
+        'mime_type': content_type,
+        'file_data': data_url,
+    }
+
+
+def _append_hivemind_file_parts_to_last_user_message(messages: list, parts: list[dict]) -> list:
+    if not parts:
+        return messages
+
+    for message in reversed(messages):
+        if not isinstance(message, dict) or message.get('role') != 'user':
+            continue
+
+        content = message.get('content', '')
+        if isinstance(content, list):
+            message['content'] = [*content, *parts]
+        else:
+            message['content'] = [
+                {'type': 'text', 'text': str(content or '')},
+                *parts,
+            ]
+        return messages
+
+    return messages
+
+
+async def add_hivemind_file_payloads(
+    messages: list,
+    files: list | None,
+    model: dict,
+    user: UserModel,
+) -> list:
+    """Inline Open WebUI uploads for the local Hivemind proxy.
+
+    Open WebUI already converts image uploads into ``image_url`` parts. For PDFs,
+    audio, and video, the local CLI proxy needs bytes it can save and enrich
+    through local processors such as hivemind-stt. This bridge is scoped to
+    Hivemind models so third-party OpenAI-compatible providers do not receive
+    non-standard message fields.
+    """
+
+    if not files or not _is_hivemind_model(model):
+        return messages
+
+    parts: list[dict] = []
+    seen_ids: set[str] = set()
+
+    for item in files:
+        if not isinstance(item, dict) or item.get('type', 'file') != 'file':
+            continue
+
+        file_id = str(item.get('id') or '')
+        if not file_id or file_id in seen_ids:
+            continue
+        seen_ids.add(file_id)
+
+        file_record = await Files.get_file_by_id(file_id)
+        if not file_record:
+            continue
+        if not (
+            file_record.user_id == user.id
+            or user.role == 'admin'
+            or await has_access_to_file(file_id, 'read', user)
+        ):
+            continue
+
+        content_type = (
+            (file_record.meta or {}).get('content_type')
+            or item.get('content_type')
+            or 'application/octet-stream'
+        )
+        if isinstance(content_type, list):
+            content_type = next((value for value in content_type if isinstance(value, str)), None)
+        if not isinstance(content_type, str):
+            content_type = 'application/octet-stream'
+
+        if content_type.startswith('image/'):
+            continue
+
+        try:
+            file_path = await asyncio.to_thread(Storage.get_file, file_record.path)
+            if not file_path or not os.path.isfile(file_path):
+                continue
+            size = os.path.getsize(file_path)
+            name = (file_record.meta or {}).get('name') or file_record.filename or item.get('name') or file_id
+            if size > HIVEMIND_INLINE_FILE_MAX_BYTES:
+                parts.append(
+                    {
+                        'type': 'input_file',
+                        'filename': name,
+                        'mime_type': content_type,
+                        'file_id': file_id,
+                        'text': f'Uploaded file {name} is {size} bytes and exceeds the inline local processing limit.',
+                    }
+                )
+                continue
+            raw = await asyncio.to_thread(Path(file_path).read_bytes)
+        except Exception as exc:
+            log.warning('Failed to inline Hivemind file %s: %s', file_id, exc)
+            continue
+
+        encoded = base64.b64encode(raw).decode('ascii')
+        data_url = f'data:{content_type};base64,{encoded}'
+        parts.append(
+            _hivemind_file_content_part(
+                {
+                    **item,
+                    'id': file_id,
+                    'name': name,
+                },
+                content_type,
+                data_url,
+            )
+        )
+
+    return _append_hivemind_file_parts_to_last_user_message(messages, parts)
+
+
 async def chat_image_generation_handler(request: Request, form_data: dict, extra_params: dict, user):
     metadata = extra_params.get('__metadata__', {})
     chat_id = metadata.get('chat_id', None)
@@ -2694,6 +2838,13 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         # files = [*files, *[{"type": "url", "url": url, "name": url} for url in urls]]
         # Remove duplicate files based on their content
         files = list({json.dumps(f, sort_keys=True): f for f in files}.values())
+
+    form_data['messages'] = await add_hivemind_file_payloads(
+        form_data.get('messages', []),
+        files,
+        model,
+        user,
+    )
 
     metadata = {
         **metadata,

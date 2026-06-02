@@ -27,6 +27,50 @@ from open_webui.utils.plugin import (
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
 
+HIVEMIND_LOCAL_MODEL_IDS = {
+    'charlie',
+    'codex-local',
+    'claude-local',
+    'hermes-local',
+    'openclaw-local',
+}
+HIVEMIND_MULTIMODAL_CAPABILITIES = {
+    'vision': True,
+    'file_upload': True,
+    'file_context': True,
+}
+
+
+def _is_hivemind_model(model: dict) -> bool:
+    model_id = str(model.get('id') or '')
+    info = model.get('info') or {}
+    base_model_id = str(info.get('base_model_id') or '')
+    tags = (info.get('meta') or {}).get('tags') or []
+    tag_names = {
+        str(tag.get('name') if isinstance(tag, dict) else tag).lower()
+        for tag in tags
+    } if isinstance(tags, list) else set()
+
+    return (
+        model_id.startswith('helix-')
+        or model_id in HIVEMIND_LOCAL_MODEL_IDS
+        or base_model_id in HIVEMIND_LOCAL_MODEL_IDS
+        or {'helix', 'hivemind'} & tag_names
+    )
+
+
+def _apply_hivemind_multimodal_capabilities(model: dict) -> None:
+    if not _is_hivemind_model(model):
+        return
+
+    info = model.setdefault('info', {})
+    meta = info.setdefault('meta', {})
+    capabilities = meta.setdefault('capabilities', {})
+    if not isinstance(capabilities, dict):
+        capabilities = {}
+        meta['capabilities'] = capabilities
+    capabilities.update(HIVEMIND_MULTIMODAL_CAPABILITIES)
+
 
 async def fetch_ollama_models(request: Request, user: UserModel = None):
     raw_ollama_models = await ollama.get_all_models(request, user=user)
@@ -307,6 +351,9 @@ async def get_all_models(request, refresh: bool = False, user: UserModel = None)
                     meta['capabilities'] = {**value, **existing}
                 elif meta.get(key) is None:
                     meta[key] = copy.deepcopy(value)
+
+    for model in models:
+        _apply_hivemind_multimodal_capabilities(model)
 
     # Batch-fetch all function valves in one query to avoid N+1 DB hits
     # inside get_action_priority (previously called per action × per model).
