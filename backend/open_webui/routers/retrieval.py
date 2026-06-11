@@ -1558,6 +1558,49 @@ def save_docs_to_vector_db(
         raise e
 
 
+async def trigger_orchestrator_file_ingest(request: Request, file_path: str, filename: str, content_type: str, user_id: str, file_id: str):
+    import httpx
+    try:
+        api_base = request.app.state.config.RAG_OPENAI_API_BASE_URL
+        api_key = request.app.state.config.RAG_OPENAI_API_KEY
+        if api_base.endswith('/v1'):
+            orchestrator_base = api_base[:-3]
+        else:
+            orchestrator_base = api_base
+            
+        url = f"{orchestrator_base}/v1/events/ingest/file"
+        headers = {
+            "X-Hivemind-Admin": api_key or "hivemind-local"
+        }
+        
+        def read_file_bytes(path):
+            with open(path, 'rb') as f:
+                return f.read()
+
+        file_content = await asyncio.to_thread(read_file_bytes, file_path)
+            
+        files = {
+            "file": (filename, file_content, content_type)
+        }
+        data = {
+            "source": "chat",
+            "tier": "research",
+            "metadata": json.dumps({
+                "user_id": user_id,
+                "file_id": file_id,
+                "filename": filename,
+                "content_type": content_type
+            })
+        }
+        
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, data=data, files=files, headers=headers, timeout=60.0)
+            resp.raise_for_status()
+            log.info(f"Successfully triggered orchestrator RAG ingestion for chat file {file_id}")
+    except Exception as e:
+        log.error(f"Failed to trigger orchestrator RAG ingestion for chat file {file_id}: {str(e)}")
+
+
 class ProcessFileForm(BaseModel):
     file_id: str
     content: str | None = None
@@ -1653,6 +1696,19 @@ async def process_file(
                 file_path = file.path
                 if file_path:
                     file_path = await asyncio.to_thread(Storage.get_file, file_path)
+                    
+                    # Trigger orchestrator RAG ingestion asynchronously
+                    asyncio.create_task(
+                        trigger_orchestrator_file_ingest(
+                            request=request,
+                            file_path=file_path,
+                            filename=file.filename,
+                            content_type=file.meta.get('content_type') or 'application/octet-stream',
+                            user_id=user.id,
+                            file_id=file.id,
+                        )
+                    )
+                    
                     loader = build_loader_from_config(request)
                     loader.user = user
                     docs = await loader.aload(file.filename, file.meta.get('content_type'), file_path)
