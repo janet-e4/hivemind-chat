@@ -1,10 +1,14 @@
 <script lang="ts">
-	import { onMount, tick, getContext } from 'svelte';
+	import { onDestroy, onMount, tick, getContext } from 'svelte';
 
 	import { decodeString } from '$lib/utils';
 	import { knowledge } from '$lib/stores';
 
-	import { getKnowledgeBases, searchKnowledgeFilesById } from '$lib/apis/knowledge';
+	import {
+		getKnowledgeBases,
+		searchKnowledgeBases,
+		searchKnowledgeFilesById
+	} from '$lib/apis/knowledge';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Database from '$lib/components/icons/Database.svelte';
@@ -96,6 +100,110 @@
 
 	let itemsLoading = false;
 	let allItemsLoaded = false;
+	let zhealthQuery = 'ZHealth';
+	let zhealthItems: any[] = [];
+	let zhealthItemsLoading = false;
+	let zhealthSearchTimer: ReturnType<typeof setTimeout> | null = null;
+	let lastZHealthQuery = '';
+	let zhealthSearchRequestId = 0;
+
+	type KnowledgeSearchItem = {
+		id?: string;
+		name?: string;
+		description?: string;
+		[key: string]: unknown;
+	};
+
+	const maxKnowledgeSearchPages = 500;
+
+	const normalizeZHealthKnowledgeName = (name: unknown) =>
+		decodeString(`${name ?? ''}`)
+			.trim()
+			.replace(/\s*\/\s*/g, ' / ');
+
+	const isZHealthChapterKnowledge = (item: any) => {
+		const name = normalizeZHealthKnowledgeName(item?.name);
+		return name.startsWith('ZHealth / ') && name !== 'ZHealth Corpus';
+	};
+
+	const parseZHealthName = (name = '') => {
+		const [, course = '', chapter = ''] = name.split(' / ');
+		return {
+			course: course.trim(),
+			chapter: chapter.trim() || name
+		};
+	};
+
+	const searchAllKnowledgeBasePages = async (query: string) => {
+		const allItems: KnowledgeSearchItem[] = [];
+		const seenIds = new Set<string>();
+		let fetchedItemCount = 0;
+		let page = 1;
+		let total: number | null = null;
+		let hasMorePages = true;
+
+		while (hasMorePages && page <= maxKnowledgeSearchPages) {
+			let res;
+			try {
+				res = await searchKnowledgeBases(localStorage.token, query, null, page);
+			} catch (error) {
+				if (allItems.length > 0) {
+					break;
+				}
+				throw error;
+			}
+
+			const pageItems: KnowledgeSearchItem[] = Array.isArray(res?.items) ? res.items : [];
+
+			if (typeof res?.total === 'number') {
+				total = res.total;
+			}
+
+			fetchedItemCount += pageItems.length;
+
+			for (const item of pageItems) {
+				const itemId = item?.id;
+				if (!itemId || !seenIds.has(itemId)) {
+					if (itemId) {
+						seenIds.add(itemId);
+					}
+					allItems.push(item);
+				}
+			}
+
+			if (pageItems.length === 0 || (total !== null && fetchedItemCount >= total)) {
+				hasMorePages = false;
+			} else {
+				page += 1;
+			}
+		}
+
+		return allItems;
+	};
+
+	const loadZHealthItems = async () => {
+		const requestId = ++zhealthSearchRequestId;
+		zhealthItemsLoading = true;
+
+		try {
+			const allItems = await searchAllKnowledgeBasePages(zhealthQuery || 'ZHealth');
+			if (requestId !== zhealthSearchRequestId) {
+				return;
+			}
+
+			zhealthItems = allItems
+				.filter(isZHealthChapterKnowledge)
+				.sort((a, b) => `${a.name ?? ''}`.localeCompare(`${b.name ?? ''}`));
+		} catch {
+			if (requestId === zhealthSearchRequestId) {
+				zhealthItems = [];
+			}
+		} finally {
+			if (requestId === zhealthSearchRequestId) {
+				zhealthItemsLoading = false;
+			}
+		}
+	};
 
 	$: if (loaded) {
 		init();
@@ -104,7 +212,7 @@
 	const init = async () => {
 		reset();
 		await tick();
-		await getItemsPage();
+		await Promise.all([getItemsPage(), loadZHealthItems()]);
 	};
 
 	const reset = () => {
@@ -128,7 +236,6 @@
 		});
 
 		if (res) {
-			console.log(res);
 			total = res.total;
 			const pageItems = res.items;
 
@@ -145,20 +252,100 @@
 			} else {
 				items = pageItems;
 			}
+		} else {
+			total = total ?? 0;
+			items = items ?? [];
+			allItemsLoaded = true;
 		}
 
 		itemsLoading = false;
 		return res;
 	};
 
+	$: if (loaded && zhealthQuery !== lastZHealthQuery) {
+		lastZHealthQuery = zhealthQuery;
+		if (zhealthSearchTimer) {
+			clearTimeout(zhealthSearchTimer);
+		}
+		zhealthSearchTimer = setTimeout(() => {
+			void loadZHealthItems();
+		}, 250);
+	}
+
 	onMount(async () => {
 		await tick();
 		loaded = true;
+	});
+
+	onDestroy(() => {
+		if (zhealthSearchTimer) {
+			clearTimeout(zhealthSearchTimer);
+		}
 	});
 </script>
 
 {#if loaded && items !== null}
 	<div class="flex flex-col gap-0.5">
+		<div class="mb-1 border-b border-gray-100 pb-2 dark:border-gray-800">
+			<div class="mb-1 flex items-center justify-between gap-2 px-2 text-[11px] font-medium uppercase text-gray-500 dark:text-gray-400">
+				<div>{$i18n.t('ZHealth Chapters')}</div>
+				{#if zhealthItemsLoading}
+					<Spinner className="size-3" />
+				{/if}
+			</div>
+
+			<input
+				class="mb-1 w-full rounded-lg border border-gray-100 bg-white px-2.5 py-1.5 text-xs outline-hidden placeholder:text-gray-400 focus:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-700"
+				bind:value={zhealthQuery}
+				placeholder={$i18n.t('Search course, chapter, or topic')}
+				aria-label={$i18n.t('Search ZHealth chapters')}
+			/>
+
+			{#if zhealthItems.length > 0}
+				<div class="max-h-64 overflow-y-auto pr-1">
+					{#each zhealthItems as item (item.id)}
+						{@const parsed = parseZHealthName(decodeString(item?.name))}
+						<button
+							class="w-full rounded-xl px-2.5 py-2 text-left text-sm transition hover:bg-gray-50 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+							type="button"
+							on:click={() => {
+								onSelect({
+									type: 'collection',
+									...item
+								});
+							}}
+						>
+							<div class="flex items-start gap-2">
+								<Tooltip content={$i18n.t('Collection')} placement="top">
+									<Database className="mt-0.5 size-4 shrink-0" />
+								</Tooltip>
+
+								<div class="min-w-0 flex-1">
+									<div class="flex min-w-0 items-center gap-1.5">
+										<div class="max-w-24 shrink-0 truncate rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+											{parsed.course}
+										</div>
+										<div class="line-clamp-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+											{parsed.chapter}
+										</div>
+									</div>
+									{#if item.description}
+										<div class="mt-0.5 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
+											{item.description}
+										</div>
+									{/if}
+								</div>
+							</div>
+						</button>
+					{/each}
+				</div>
+			{:else if !zhealthItemsLoading}
+				<div class="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">
+					{$i18n.t('No ZHealth chapters found.')}
+				</div>
+			{/if}
+		</div>
+
 		{#if items.length === 0}
 			<div class="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
 				{$i18n.t('No knowledge bases found.')}
@@ -244,7 +431,6 @@
 									class=" px-2.5 py-1 rounded-xl w-full text-left flex justify-between items-center text-sm hover:bg-gray-50 hover:dark:bg-gray-800 hover:dark:text-gray-100"
 									type="button"
 									on:click={() => {
-										console.log(file);
 										onSelect({
 											type: 'file',
 											name: file?.meta?.name,

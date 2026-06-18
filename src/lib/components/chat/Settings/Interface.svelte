@@ -77,6 +77,7 @@
 
 	let showFloatingActionButtons = true;
 	let floatingActionButtons = null;
+	let showHivemindSideMenu = true;
 	let showConversationMinimap = true;
 
 	let imageCompression = false;
@@ -264,6 +265,7 @@
 
 		showFloatingActionButtons = $settings?.showFloatingActionButtons ?? true;
 		floatingActionButtons = $settings?.floatingActionButtons ?? null;
+		showHivemindSideMenu = $settings?.showHivemindSideMenu ?? true;
 		showConversationMinimap = $settings?.showConversationMinimap ?? true;
 
 		imageCompression = $settings?.imageCompression ?? false;
@@ -1120,9 +1122,28 @@
 
 			<div>
 				<div class=" py-0.5 flex w-full justify-between">
-					<label id="conversation-minimap-label" class=" self-center text-xs">
-						{$i18n.t('Conversation Quick Browse')}
-					</label>
+					<div id="hivemind-side-menu-label" class=" self-center text-xs">
+						{$i18n.t('Hivemind Side Menu')}
+					</div>
+
+					<div class="flex items-center gap-3 p-1">
+						<Switch
+							ariaLabelledbyId="hivemind-side-menu-label"
+							tooltip={true}
+							bind:state={showHivemindSideMenu}
+							on:change={() => {
+								saveSettings({ showHivemindSideMenu });
+							}}
+						/>
+					</div>
+				</div>
+			</div>
+
+			<div>
+				<div class=" py-0.5 flex w-full justify-between">
+					<div id="conversation-minimap-label" class=" self-center text-xs">
+						{$i18n.t('Conversation Map')}
+					</div>
 
 					<div class="flex items-center gap-3 p-1">
 						<Switch
