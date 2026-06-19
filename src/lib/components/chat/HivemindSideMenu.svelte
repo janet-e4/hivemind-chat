@@ -4,7 +4,7 @@
 	import type { i18n as i18nType } from 'i18next';
 	import { v4 as uuidv4 } from 'uuid';
 	import { toast } from 'svelte-sonner';
-	import { mobile, settings } from '$lib/stores';
+	import { mobile, settings, hivemindFileNavRequest } from '$lib/stores';
 	import { uploadFile } from '$lib/apis/files';
 	import { searchKnowledgeBases } from '$lib/apis/knowledge';
 	import { decodeString } from '$lib/utils';
@@ -61,6 +61,7 @@
 	let autoAttachedForPrompt = '';
 	let resolvedConversationId = '';
 	let suppressNextAutoAttach = false;
+	let pendingFileNavPath: string | null = null;
 
 	type KnowledgeSearchItem = {
 		id?: string;
@@ -366,6 +367,14 @@
 			void loadZHealthKnowledge();
 		}, 250);
 	}
+
+	$: if ($hivemindFileNavRequest && enabled) {
+		pendingFileNavPath = $hivemindFileNavRequest;
+		hivemindFileNavRequest.set(null);
+		activeTab = 'files';
+		open = true;
+		setTimeout(() => { pendingFileNavPath = null; }, 0);
+	}
 </script>
 
 {#if enabled}
@@ -510,6 +519,7 @@
 									chatId={resolvedConversationId}
 									onInsertPath={handleInsertPath}
 									onAttachFile={attachDownloadedFile}
+									navToPath={pendingFileNavPath}
 								/>
 							</div>
 						{:else if activeTab === 'context'}

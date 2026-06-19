@@ -107,6 +107,10 @@ export const showFileNavPath: Writable<string | null> = writable(null);
 export const showFileNavDir: Writable<string | null> = writable(null);
 export const selectedTerminalId: Writable<string | null> = writable(null);
 
+// One-shot request to navigate the Hivemind side menu Files tab to a path and preview it.
+// Set by chat link clicks; consumed and cleared by HivemindSideMenu.
+export const hivemindFileNavRequest: Writable<string | null> = writable(null);
+
 export const artifactCode = writable(null);
 export const artifactContents = writable(null);
 

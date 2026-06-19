@@ -4,11 +4,13 @@
 
 	import ChatBubble from '$lib/components/icons/ChatBubble.svelte';
 	import LightBulb from '$lib/components/icons/LightBulb.svelte';
+	import Note from '$lib/components/icons/Note.svelte';
 
 	export let id = '';
 
 	export let actions = [];
 	export let onSetInputText = (text) => {};
+	export let onAddToNotes = (text) => {};
 
 	let floatingInput = false;
 	let selectedAction = null;
@@ -33,8 +35,24 @@
 			label: $i18n.t('Explain'),
 			icon: LightBulb,
 			prompt: `{{SELECTED_CONTENT}}\n\n\n${$i18n.t('Explain')}`
+		},
+		{
+			id: 'add-to-notes',
+			label: $i18n.t('Add to Notes'),
+			icon: Note,
+			input: false,
+			prompt: ''
 		}
 	];
+	const ADD_TO_NOTES_ACTION = DEFAULT_ACTIONS.find((action) => action.id === 'add-to-notes');
+
+	$: effectiveActions = (() => {
+		const baseActions = actions.length === 0 ? DEFAULT_ACTIONS : actions;
+		if (baseActions.some((action) => action.id === 'add-to-notes') || !ADD_TO_NOTES_ACTION) {
+			return baseActions;
+		}
+		return [...baseActions, ADD_TO_NOTES_ACTION];
+	})();
 
 	const actionHandler = (actionId) => {
 		let selectedContent = selectedText
@@ -42,8 +60,14 @@
 			.map((line) => `> ${line}`)
 			.join('\n');
 
-		let selectedAction = actions.find((action) => action.id === actionId);
+		let selectedAction = effectiveActions.find((action) => action.id === actionId);
 		if (!selectedAction) {
+			return;
+		}
+
+		if (selectedAction.id === 'add-to-notes') {
+			onAddToNotes(selectedText);
+			closeHandler();
 			return;
 		}
 
@@ -92,7 +116,7 @@
 		<div
 			class="flex flex-row shrink-0 p-0.5 bg-white dark:bg-gray-850 dark:text-gray-100 text-medium rounded-xl shadow-xl border border-gray-100 dark:border-gray-800"
 		>
-			{#each actions as action}
+			{#each effectiveActions as action}
 				<button
 					aria-label={action.label}
 					class="px-1.5 py-[1px] hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl flex items-center gap-1 min-w-fit transition"

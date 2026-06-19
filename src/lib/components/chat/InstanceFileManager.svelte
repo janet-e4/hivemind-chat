@@ -7,6 +7,7 @@
 		getTerminalConfig,
 		getTerminalServers,
 		listFiles,
+		readFile,
 		downloadFileBlob,
 		type FileEntry
 	} from '$lib/apis/terminal';
@@ -22,6 +23,7 @@
 	import Search from '$lib/components/icons/Search.svelte';
 	import ChevronUp from '$lib/components/icons/ChevronUp.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
+	import FilePreviewModal from '$lib/components/chat/FilePreviewModal.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -29,10 +31,12 @@
 	export let onInsertPath: (path: string) => void = () => {};
 	export let onAttachFile: (blob: Blob, name: string, contentType: string) => Promise<void> | void =
 		async () => {};
+	export let navToPath: string | null = null;
 
 	let selectedTerminal: { url: string; key: string } | null = null;
 	let terminalEnabled = true;
 	let currentPath = '/';
+	let initialCwd = '/';
 	let entries: FileEntry[] = [];
 	let loading = false;
 	let error = '';
@@ -45,6 +49,12 @@
 	let searchInput: HTMLInputElement | null = null;
 	let filteredEntries: FileEntry[] = [];
 	let filteredCountLabel = '0';
+
+	let previewPath = '';
+	let previewContent: string | null = null;
+	let previewLoading = false;
+	let previewError = '';
+	let showPreview = false;
 
 	type TerminalConnection = { url: string; key: string };
 
@@ -190,7 +200,7 @@
 			return;
 		}
 
-		insertEntryPath(entry);
+		void openPreview(entryPath(entry));
 	};
 
 	const openFirstSearchResult = () => {
@@ -208,6 +218,60 @@
 		const trimmed = currentPath.endsWith('/') ? currentPath.slice(0, -1) : currentPath;
 		const parent = trimmed.substring(0, trimmed.lastIndexOf('/') + 1) || '/';
 		void loadDir(parent);
+	};
+
+	const openPreview = async (filePath: string) => {
+		if (!selectedTerminal || !terminalEnabled) return;
+		previewPath = filePath;
+		previewContent = null;
+		previewError = '';
+		previewLoading = true;
+		showPreview = true;
+
+		try {
+			const content = await readFile(
+				selectedTerminal.url,
+				selectedTerminal.key,
+				filePath,
+				chatId ?? undefined
+			);
+			previewContent = content;
+			if (content === null) {
+				previewError = $i18n.t('Unable to read file');
+			}
+		} catch {
+			previewError = $i18n.t('Unable to read file');
+		} finally {
+			previewLoading = false;
+		}
+	};
+
+	const resolveNavPath = (rawPath: string): string => {
+		if (rawPath.startsWith('/')) return rawPath;
+		// Resolve relative to initialCwd
+		const base = initialCwd.endsWith('/') ? initialCwd : `${initialCwd}/`;
+		const combined = `${base}${rawPath.replace(/^\.\//, '')}`;
+		// Normalize: collapse /./  and /../
+		const parts = combined.split('/');
+		const resolved: string[] = [];
+		for (const part of parts) {
+			if (part === '' || part === '.') continue;
+			if (part === '..') { resolved.pop(); } else { resolved.push(part); }
+		}
+		return `/${resolved.join('/')}`;
+	};
+
+	const handleNavToPath = async (rawPath: string) => {
+		if (!selectedTerminal || !terminalEnabled || !rawPath) return;
+		const abs = resolveNavPath(rawPath);
+		const isDir = abs.endsWith('/');
+		const dirPath = isDir ? abs : abs.substring(0, abs.lastIndexOf('/') + 1) || '/';
+
+		await loadDir(dirPath);
+
+		if (!isDir) {
+			void openPreview(abs);
+		}
 	};
 
 	const init = async () => {
@@ -228,7 +292,9 @@
 		}
 
 		const cwd = await getCwd(selectedTerminal.url, selectedTerminal.key, chatId ?? undefined);
-		await loadDir(cwd ? normalizePath(cwd) : '/');
+		const cwdNorm = cwd ? normalizePath(cwd) : '/';
+		initialCwd = cwdNorm.endsWith('/') ? cwdNorm.slice(0, -1) || '/' : cwdNorm;
+		await loadDir(cwdNorm);
 	};
 
 	const matchesSearch = (entry: FileEntry) => {
@@ -265,7 +331,21 @@
 			void init();
 		}
 	}
+
+	$: if (mounted && navToPath) {
+		void handleNavToPath(navToPath);
+	}
 </script>
+
+{#if showPreview}
+	<FilePreviewModal
+		path={previewPath}
+		content={previewContent}
+		loading={previewLoading}
+		error={previewError}
+		onClose={() => { showPreview = false; }}
+	/>
+{/if}
 
 <div class="flex h-full min-h-0 flex-col gap-2 text-xs">
 	<div class="flex items-center gap-1">

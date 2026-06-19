@@ -39,6 +39,11 @@ router = APIRouter()
 def _truncate_note_data(data: Optional[dict], max_length: int = 1000) -> Optional[dict]:
     if not data:
         return data
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except Exception:
+            return {'content': {'md': ''}}
     md = (data.get('content') or {}).get('md') or ''
     return {'content': {'md': md[:max_length]}}
 

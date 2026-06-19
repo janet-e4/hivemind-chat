@@ -1494,35 +1494,29 @@
 
 	const scrollToBottom = async (behavior = 'auto') => {
 		await tick();
-		if (messagesContainerElement) {
-			messagesContainerElement.scrollTo({
-				top: messagesContainerElement.scrollHeight,
+		const scrollTarget = () => {
+			const container = messagesContainerElement;
+			if (!container) return;
+			container.scrollTo({
+				top: container.scrollHeight,
 				behavior
 			});
+		};
 
-			// content-visibility: auto causes the initial scrollHeight to be based on
-			// estimated sizes (contain-intrinsic-size). After we scroll, previously
-			// off-screen messages become visible and the browser resolves their actual
-			// heights, which shifts scrollHeight. Re-layouts can cascade across frames
-			// (new sizes reveal more content, triggering further size resolution), so
-			// we re-scroll across two animation frames to land at the true bottom.
+		scrollTarget();
+
+		// content-visibility: auto causes the initial scrollHeight to be based on
+		// estimated sizes (contain-intrinsic-size). After we scroll, previously
+		// off-screen messages become visible and the browser resolves their actual
+		// heights, which shifts scrollHeight. Re-layouts can cascade across frames
+		// (new sizes reveal more content, triggering further size resolution), so
+		// we re-scroll across two animation frames to land at the true bottom.
+		requestAnimationFrame(() => {
+			scrollTarget();
 			requestAnimationFrame(() => {
-				if (messagesContainerElement) {
-					messagesContainerElement.scrollTo({
-						top: messagesContainerElement.scrollHeight,
-						behavior
-					});
-					requestAnimationFrame(() => {
-						if (messagesContainerElement) {
-							messagesContainerElement.scrollTo({
-								top: messagesContainerElement.scrollHeight,
-								behavior
-							});
-						}
-					});
-				}
+				scrollTarget();
 			});
-		}
+		});
 	};
 
 	const scrollToTop = async () => {
@@ -3108,10 +3102,11 @@
 									id="messages-container"
 									bind:this={messagesContainerElement}
 									on:scroll={(e) => {
+										const container = e.currentTarget as HTMLDivElement | null;
+										if (!container) return;
 										autoScroll =
-											messagesContainerElement.scrollHeight - messagesContainerElement.scrollTop <=
-											messagesContainerElement.clientHeight + 5;
-										isNearTop = messagesContainerElement.scrollTop <= 100;
+											container.scrollHeight - container.scrollTop <= container.clientHeight + 5;
+										isNearTop = container.scrollTop <= 100;
 									}}
 								>
 									<div class=" h-full w-full flex flex-col">
