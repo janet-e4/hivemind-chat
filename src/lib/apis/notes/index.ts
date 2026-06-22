@@ -102,7 +102,7 @@ export const searchNotes = async (
 	let error = null;
 	const searchParams = new URLSearchParams();
 
-	if (query !== null) {
+	if (query !== null && query.trim() !== '') {
 		searchParams.append('query', query);
 	}
 

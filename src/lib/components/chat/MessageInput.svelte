@@ -380,7 +380,7 @@
 		chatInputElement?.replaceCommandWithText(text);
 	};
 
-	const insertTextAtCursor = async (text: string) => {
+	export const insertTextAtCursor = async (text: string) => {
 		const chatInput = document.getElementById('chat-input');
 		if (!chatInput) return;
 

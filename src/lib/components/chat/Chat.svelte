@@ -102,7 +102,7 @@
 	import Banner from '../common/Banner.svelte';
 	import MessageInput from '$lib/components/chat/MessageInput.svelte';
 	import Messages from '$lib/components/chat/Messages.svelte';
-	import ConversationMinimap from '$lib/components/chat/ConversationMinimap.svelte';
+	import HivemindSideMenu from '$lib/components/chat/HivemindSideMenu.svelte';
 	import Navbar from '$lib/components/chat/Navbar.svelte';
 	import ChatControls from './ChatControls.svelte';
 	import EventConfirmDialog from '../common/ConfirmDialog.svelte';
@@ -184,6 +184,16 @@
 	let chatFiles = [];
 	let files = [];
 	let params = {};
+	let hasConversationMessages = false;
+	let conversationId = '';
+
+	$: hasConversationMessages = createMessagesList(history, history.currentId).length > 0;
+	$: conversationId =
+		`${chatIdProp || (hasConversationMessages ? $chatId || '' : '') || ''}`.trim();
+
+	const insertPathIntoChat = async (path: string) => {
+		await messageInput?.insertTextAtCursor(path);
+	};
 
 	$: if (chatIdProp) {
 		navigateHandler();
@@ -1484,35 +1494,29 @@
 
 	const scrollToBottom = async (behavior = 'auto') => {
 		await tick();
-		if (messagesContainerElement) {
-			messagesContainerElement.scrollTo({
-				top: messagesContainerElement.scrollHeight,
+		const scrollTarget = () => {
+			const container = messagesContainerElement;
+			if (!container) return;
+			container.scrollTo({
+				top: container.scrollHeight,
 				behavior
 			});
+		};
 
-			// content-visibility: auto causes the initial scrollHeight to be based on
-			// estimated sizes (contain-intrinsic-size). After we scroll, previously
-			// off-screen messages become visible and the browser resolves their actual
-			// heights, which shifts scrollHeight. Re-layouts can cascade across frames
-			// (new sizes reveal more content, triggering further size resolution), so
-			// we re-scroll across two animation frames to land at the true bottom.
+		scrollTarget();
+
+		// content-visibility: auto causes the initial scrollHeight to be based on
+		// estimated sizes (contain-intrinsic-size). After we scroll, previously
+		// off-screen messages become visible and the browser resolves their actual
+		// heights, which shifts scrollHeight. Re-layouts can cascade across frames
+		// (new sizes reveal more content, triggering further size resolution), so
+		// we re-scroll across two animation frames to land at the true bottom.
+		requestAnimationFrame(() => {
+			scrollTarget();
 			requestAnimationFrame(() => {
-				if (messagesContainerElement) {
-					messagesContainerElement.scrollTo({
-						top: messagesContainerElement.scrollHeight,
-						behavior
-					});
-					requestAnimationFrame(() => {
-						if (messagesContainerElement) {
-							messagesContainerElement.scrollTo({
-								top: messagesContainerElement.scrollHeight,
-								behavior
-							});
-						}
-					});
-				}
+				scrollTarget();
 			});
-		}
+		});
 	};
 
 	const scrollToTop = async () => {
@@ -3087,51 +3091,51 @@
 						}}
 					/>
 
-					<div id="chat-pane" class="flex flex-col flex-auto z-10 w-full @container overflow-auto">
+					<div
+						id="chat-pane"
+						class="relative flex flex-col flex-auto z-10 w-full @container overflow-auto"
+					>
 						{#if ($settings?.landingPageMode === 'chat' && !$selectedFolder) || createMessagesList(history, history.currentId).length > 0}
-							<div
-								class=" pb-2.5 flex flex-col justify-between w-full flex-auto overflow-auto h-0 max-w-full z-10 scrollbar-hidden"
-								id="messages-container"
-								bind:this={messagesContainerElement}
-								on:scroll={(e) => {
-									autoScroll =
-										messagesContainerElement.scrollHeight - messagesContainerElement.scrollTop <=
-										messagesContainerElement.clientHeight + 5;
-									isNearTop = messagesContainerElement.scrollTop <= 100;
-								}}
-							>
-								<div class=" h-full w-full flex flex-col">
-									<Messages
-										bind:this={messagesRef}
-										chatId={$chatId}
-										bind:history
-										bind:autoScroll
-										bind:prompt
-										setInputText={(text) => {
-											messageInput?.setText(text);
-										}}
-										{selectedModels}
-										{atSelectedModel}
-										{sendMessage}
-										{showMessage}
-										{submitMessage}
-										{continueResponse}
-										{regenerateResponse}
-										{mergeResponses}
-										{chatActionHandler}
-										{addMessages}
-										topPadding={true}
-										bottomPadding={files.length > 0}
-										{onSelect}
-									/>
+							<div class="relative h-0 w-full flex-auto max-w-full z-10">
+								<div
+									class="pb-2.5 flex h-full w-full flex-col justify-between overflow-auto scrollbar-hidden"
+									id="messages-container"
+									bind:this={messagesContainerElement}
+									on:scroll={(e) => {
+										const container = e.currentTarget as HTMLDivElement | null;
+										if (!container) return;
+										autoScroll =
+											container.scrollHeight - container.scrollTop <= container.clientHeight + 5;
+										isNearTop = container.scrollTop <= 100;
+									}}
+								>
+									<div class=" h-full w-full flex flex-col">
+										<Messages
+											bind:this={messagesRef}
+											chatId={$chatId}
+											bind:history
+											bind:autoScroll
+											bind:prompt
+											setInputText={(text) => {
+												messageInput?.setText(text);
+											}}
+											{selectedModels}
+											{atSelectedModel}
+											{sendMessage}
+											{showMessage}
+											{submitMessage}
+											{continueResponse}
+											{regenerateResponse}
+											{mergeResponses}
+											{chatActionHandler}
+											{addMessages}
+											topPadding={true}
+											bottomPadding={files.length > 0}
+											{onSelect}
+										/>
+									</div>
 								</div>
 							</div>
-
-							<ConversationMinimap
-								{history}
-								{messagesRef}
-								scrollContainerElement={messagesContainerElement}
-							/>
 
 							<div class=" pb-2 {dragged ? 'z-0' : 'z-10'}">
 								<MessageInput
@@ -3253,6 +3257,18 @@
 									}}
 								/>
 							</div>
+						{/if}
+
+						{#if conversationId}
+							<HivemindSideMenu
+								{history}
+								{messagesRef}
+								scrollContainerElement={messagesContainerElement}
+								{conversationId}
+								bind:files
+								{prompt}
+								onInsertPath={insertPathIntoChat}
+							/>
 						{/if}
 					</div>
 				</Pane>

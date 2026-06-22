@@ -10,6 +10,7 @@
 
 	import { WEBUI_BASE_URL } from '$lib/constants';
 	import { copyToClipboard, unescapeHtml } from '$lib/utils';
+	import { hivemindFileNavRequest } from '$lib/stores';
 
 	import Image from '$lib/components/common/Image.svelte';
 	import KatexRenderer from './KatexRenderer.svelte';
@@ -45,10 +46,24 @@
 		return null;
 	};
 
+	const isRelativeFilePath = (href: string): boolean => {
+		if (!href || href.startsWith('http') || href.startsWith('//') || href.startsWith('#')) {
+			return false;
+		}
+		return href.startsWith('./') || href.startsWith('../');
+	};
+
 	/**
 	 * Handle link clicks - intercept same-origin app URLs for in-app navigation
+	 * and relative file paths for the Hivemind side menu file explorer.
 	 */
 	const handleLinkClick = (e: MouseEvent, href: string) => {
+		const pathOnly = href.split('#')[0];
+		if (isRelativeFilePath(pathOnly)) {
+			e.preventDefault();
+			hivemindFileNavRequest.set(pathOnly);
+			return;
+		}
 		try {
 			const url = new URL(href, window.location.origin);
 			// Check if same origin and an in-app route

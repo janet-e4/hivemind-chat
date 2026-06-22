@@ -180,7 +180,11 @@ class NoteTable:
                             or_(
                                 func.replace(func.replace(Note.title, '-', ''), ' ', '').ilike(f'%{word}%'),
                                 func.replace(
-                                    func.replace(Note.data['content']['md'].as_string(), '-', ''),
+                                    func.replace(
+                                        func.coalesce(Note.data['content']['md'].as_string(), ''),
+                                        '-',
+                                        '',
+                                    ),
                                     ' ',
                                     '',
                                 ).ilike(f'%{word}%'),

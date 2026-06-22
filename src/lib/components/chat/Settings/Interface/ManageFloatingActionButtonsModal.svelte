@@ -74,6 +74,12 @@
 													label: $i18n.t('Explain'),
 													input: false,
 													prompt: `{{SELECTED_CONTENT}}\n\n\n${$i18n.t('Explain')}`
+												},
+												{
+													id: 'add-to-notes',
+													label: $i18n.t('Add to Notes'),
+													input: false,
+													prompt: ''
 												}
 											];
 										} else {

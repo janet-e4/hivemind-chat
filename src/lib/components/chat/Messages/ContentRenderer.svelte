@@ -13,6 +13,7 @@
 		showEmbeds
 	} from '$lib/stores';
 	import FloatingButtons from '../ContentRenderer/FloatingButtons.svelte';
+	import AddToNotesModal from '$lib/components/notes/AddToNotesModal.svelte';
 	import { createMessagesList, replaceOutsideCode } from '$lib/utils';
 
 	/**
@@ -92,6 +93,8 @@
 
 	let contentContainerElement;
 	let floatingButtonsElement;
+	let showAddToNotesModal = false;
+	let selectedTextForNotes = '';
 
 	let sourceIds = [];
 	$: getSourceIds(sources);
@@ -183,6 +186,11 @@
 				floatingButtonsElement?.closeHandler();
 			}
 		}
+	};
+
+	const openAddToNotesModal = (text) => {
+		selectedTextForNotes = text ?? '';
+		showAddToNotesModal = true;
 	};
 
 	const keydownHandler = (e) => {
@@ -283,9 +291,20 @@
 		bind:this={floatingButtonsElement}
 		{id}
 		actions={$settings?.floatingActionButtons ?? []}
+		onAddToNotes={(text) => {
+			openAddToNotesModal(text);
+		}}
 		onSetInputText={(text) => {
 			onSetInputText(text);
 			closeFloatingButtons();
 		}}
 	/>
 {/if}
+
+<AddToNotesModal
+	bind:show={showAddToNotesModal}
+	selection={selectedTextForNotes}
+	onSaved={() => {
+		selectedTextForNotes = '';
+	}}
+/>
