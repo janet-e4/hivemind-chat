@@ -6,7 +6,7 @@
 	import { toast } from 'svelte-sonner';
 	import { mobile, settings, hivemindFileNavRequest } from '$lib/stores';
 	import { uploadFile } from '$lib/apis/files';
-	import { searchKnowledgeBases } from '$lib/apis/knowledge';
+	import { getKnowledgeBases, searchKnowledgeBases } from '$lib/apis/knowledge';
 	import { decodeString } from '$lib/utils';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -51,11 +51,11 @@
 	let hasConversationSurface = false;
 	let enabled = false;
 	let contextMode: ContextMode = 'suggest';
-	let corpusQuery = 'ZHealth';
-	let zhealthKnowledgeItems: any[] = [];
-	let zhealthLoading = false;
-	let zhealthError = '';
-	let zhealthLoadRequestId = 0;
+	let corpusQuery = '';
+	let corpusKnowledgeItems: any[] = [];
+	let corpusLoading = false;
+	let corpusError = '';
+	let corpusLoadRequestId = 0;
 	let corpusSearchTimer: ReturnType<typeof setTimeout> | null = null;
 	let lastCorpusQuery = corpusQuery;
 	let autoAttachedForPrompt = '';
@@ -117,13 +117,12 @@
 		...item
 	});
 
-	const normalizeZHealthKnowledgeName = (name: unknown) =>
+	const normalizeKnowledgeName = (name: unknown) =>
 		decodeString(`${name ?? ''}`)
 			.trim()
 			.replace(/\s*\/\s*/g, ' / ');
 
-	const isZHealthKnowledge = (item: any) =>
-		normalizeZHealthKnowledgeName(item?.name).startsWith('ZHealth / ');
+	const isCorpusKnowledge = (item: any) => Boolean(item?.id);
 
 	const isAttached = (item: any) =>
 		files.some((file) => file?.type === 'collection' && file?.id === item?.id);
@@ -148,8 +147,8 @@
 		}
 	};
 
-	const attachedZHealthItems = () =>
-		files.filter((file) => file?.type === 'collection' && isZHealthKnowledge(file));
+	const attachedCorpusItems = () =>
+		files.filter((file) => file?.type === 'collection' && isCorpusKnowledge(file));
 
 	const attachDownloadedFile = async (blob: Blob, name: string, contentType: string) => {
 		if (!blob || !name) {
@@ -210,11 +209,14 @@
 		let page = 1;
 		let total: number | null = null;
 		let hasMorePages = true;
+		const normalizedQuery = query.trim();
 
 		while (hasMorePages && page <= maxKnowledgeSearchPages) {
 			let res;
 			try {
-				res = await searchKnowledgeBases(localStorage.token, query, null, page);
+				res = normalizedQuery
+					? await searchKnowledgeBases(localStorage.token, normalizedQuery, null, page)
+					: await getKnowledgeBases(localStorage.token, page);
 			} catch (error) {
 				if (allItems.length > 0) {
 					break;
@@ -250,43 +252,43 @@
 		return allItems;
 	};
 
-	const loadZHealthKnowledge = async (
+	const loadCorpusKnowledge = async (
 		query = corpusQuery,
 		options: { updateList?: boolean } = {}
 	) => {
 		const updateList = options.updateList ?? query === corpusQuery;
-		const requestId = updateList ? ++zhealthLoadRequestId : zhealthLoadRequestId;
+		const requestId = updateList ? ++corpusLoadRequestId : corpusLoadRequestId;
 
 		if (updateList) {
-			zhealthLoading = true;
-			zhealthError = '';
+			corpusLoading = true;
+			corpusError = '';
 		}
 
 		try {
-			const allItems = await searchAllKnowledgeBasePages(query || 'ZHealth');
-			if (updateList && requestId !== zhealthLoadRequestId) {
+			const allItems = await searchAllKnowledgeBasePages(query);
+			if (updateList && requestId !== corpusLoadRequestId) {
 				return [];
 			}
 
 			const nextItems = allItems
-				.filter(isZHealthKnowledge)
+				.filter(isCorpusKnowledge)
 				.map(normalizeKnowledgeItem)
-				.sort((a, b) => `${a.name ?? ''}`.localeCompare(`${b.name ?? ''}`));
+				.sort((a, b) => normalizeKnowledgeName(a.name).localeCompare(normalizeKnowledgeName(b.name)));
 
 			if (updateList) {
-				zhealthKnowledgeItems = nextItems;
+				corpusKnowledgeItems = nextItems;
 			}
 			return nextItems;
 		} catch (err) {
-			if (updateList && requestId === zhealthLoadRequestId) {
+			if (updateList && requestId === corpusLoadRequestId) {
 				console.error(err);
-				zhealthError = 'Unable to load ZHealth knowledge';
-				zhealthKnowledgeItems = [];
+				corpusError = 'Unable to load knowledge sources';
+				corpusKnowledgeItems = [];
 			}
 			return [];
 		} finally {
-			if (updateList && requestId === zhealthLoadRequestId) {
-				zhealthLoading = false;
+			if (updateList && requestId === corpusLoadRequestId) {
+				corpusLoading = false;
 			}
 		}
 	};
@@ -303,7 +305,7 @@
 		}
 
 		autoAttachedForPrompt = query;
-		const items = await loadZHealthKnowledge(query, { updateList: false });
+		const items = await loadCorpusKnowledge(query, { updateList: false });
 		const match = items.find((item) => !isAttached(item));
 		if (match) {
 			attachKnowledge(match);
@@ -337,7 +339,7 @@
 
 		mounted = true;
 		if (enabled) {
-			void loadZHealthKnowledge();
+			void loadCorpusKnowledge();
 		}
 	});
 
@@ -364,7 +366,7 @@
 			clearTimeout(corpusSearchTimer);
 		}
 		corpusSearchTimer = setTimeout(() => {
-			void loadZHealthKnowledge();
+			void loadCorpusKnowledge();
 		}, 250);
 	}
 
@@ -551,13 +553,13 @@
 								<div
 									class="min-h-0 flex-1 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-800"
 								>
-									{#if attachedZHealthItems().length === 0}
+									{#if attachedCorpusItems().length === 0}
 										<div class="p-4 text-center text-gray-500 dark:text-gray-400">
-											{$i18n.t('No ZHealth context selected')}
+											{$i18n.t('No corpus context selected')}
 										</div>
 									{:else}
 										<div class="divide-y divide-gray-100 dark:divide-gray-900">
-											{#each attachedZHealthItems() as item (item.id)}
+											{#each attachedCorpusItems() as item (item.id)}
 												<div class="flex items-center gap-2 px-3 py-2">
 													<Database className="size-4 shrink-0 text-gray-500 dark:text-gray-400" />
 													<div class="min-w-0 flex-1">
@@ -590,7 +592,7 @@
 									class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 outline-hidden focus:ring-2 focus:ring-gray-500/30 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200"
 									on:keydown={(event) => {
 										if (event.key === 'Enter') {
-											void loadZHealthKnowledge();
+											void loadCorpusKnowledge();
 										}
 									}}
 								/>
@@ -598,21 +600,21 @@
 								<div
 									class="min-h-0 flex-1 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-800"
 								>
-									{#if zhealthLoading}
+									{#if corpusLoading}
 										<div class="p-4 text-center text-gray-500 dark:text-gray-400">
-											{$i18n.t('Loading ZHealth sources')}
+											{$i18n.t('Loading sources')}
 										</div>
-									{:else if zhealthError}
+									{:else if corpusError}
 										<div class="p-4 text-center text-red-500">
-											{$i18n.t(zhealthError)}
+											{$i18n.t(corpusError)}
 										</div>
-									{:else if zhealthKnowledgeItems.length === 0}
+									{:else if corpusKnowledgeItems.length === 0}
 										<div class="p-4 text-center text-gray-500 dark:text-gray-400">
-											{$i18n.t('No ZHealth sources found')}
+											{$i18n.t('No sources found')}
 										</div>
 									{:else}
 										<div class="divide-y divide-gray-100 dark:divide-gray-900">
-											{#each zhealthKnowledgeItems as item (item.id)}
+											{#each corpusKnowledgeItems as item (item.id)}
 												<button
 													type="button"
 													class="flex w-full items-center gap-2 px-3 py-2 text-left transition hover:bg-gray-50 dark:hover:bg-gray-900/70"
