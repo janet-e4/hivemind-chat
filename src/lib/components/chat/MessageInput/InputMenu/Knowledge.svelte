@@ -100,12 +100,12 @@
 
 	let itemsLoading = false;
 	let allItemsLoaded = false;
-	let zhealthQuery = 'ZHealth';
-	let zhealthItems: any[] = [];
-	let zhealthItemsLoading = false;
-	let zhealthSearchTimer: ReturnType<typeof setTimeout> | null = null;
-	let lastZHealthQuery = '';
-	let zhealthSearchRequestId = 0;
+	let featuredQuery = '';
+	let featuredItems: any[] = [];
+	let featuredItemsLoading = false;
+	let featuredSearchTimer: ReturnType<typeof setTimeout> | null = null;
+	let lastFeaturedQuery = '';
+	let featuredSearchRequestId = 0;
 
 	type KnowledgeSearchItem = {
 		id?: string;
@@ -116,21 +116,18 @@
 
 	const maxKnowledgeSearchPages = 500;
 
-	const normalizeZHealthKnowledgeName = (name: unknown) =>
+	const normalizeKnowledgeName = (name: unknown) =>
 		decodeString(`${name ?? ''}`)
 			.trim()
 			.replace(/\s*\/\s*/g, ' / ');
 
-	const isZHealthChapterKnowledge = (item: any) => {
-		const name = normalizeZHealthKnowledgeName(item?.name);
-		return name.startsWith('ZHealth / ') && name !== 'ZHealth Corpus';
-	};
+	const isFeaturedKnowledge = (item: any) => Boolean(item?.id);
 
-	const parseZHealthName = (name = '') => {
-		const [, course = '', chapter = ''] = name.split(' / ');
+	const parseKnowledgeName = (name = '') => {
+		const [collection = '', topic = ''] = normalizeKnowledgeName(name).split(' / ');
 		return {
-			course: course.trim(),
-			chapter: chapter.trim() || name
+			collection: collection.trim(),
+			topic: topic.trim() || name
 		};
 	};
 
@@ -141,11 +138,14 @@
 		let page = 1;
 		let total: number | null = null;
 		let hasMorePages = true;
+		const normalizedQuery = query.trim();
 
 		while (hasMorePages && page <= maxKnowledgeSearchPages) {
 			let res;
 			try {
-				res = await searchKnowledgeBases(localStorage.token, query, null, page);
+				res = normalizedQuery
+					? await searchKnowledgeBases(localStorage.token, normalizedQuery, null, page)
+					: await getKnowledgeBases(localStorage.token, page);
 			} catch (error) {
 				if (allItems.length > 0) {
 					break;
@@ -181,26 +181,26 @@
 		return allItems;
 	};
 
-	const loadZHealthItems = async () => {
-		const requestId = ++zhealthSearchRequestId;
-		zhealthItemsLoading = true;
+	const loadFeaturedItems = async () => {
+		const requestId = ++featuredSearchRequestId;
+		featuredItemsLoading = true;
 
 		try {
-			const allItems = await searchAllKnowledgeBasePages(zhealthQuery || 'ZHealth');
-			if (requestId !== zhealthSearchRequestId) {
+			const allItems = await searchAllKnowledgeBasePages(featuredQuery);
+			if (requestId !== featuredSearchRequestId) {
 				return;
 			}
 
-			zhealthItems = allItems
-				.filter(isZHealthChapterKnowledge)
-				.sort((a, b) => `${a.name ?? ''}`.localeCompare(`${b.name ?? ''}`));
+			featuredItems = allItems
+				.filter(isFeaturedKnowledge)
+				.sort((a, b) => normalizeKnowledgeName(a.name).localeCompare(normalizeKnowledgeName(b.name)));
 		} catch {
-			if (requestId === zhealthSearchRequestId) {
-				zhealthItems = [];
+			if (requestId === featuredSearchRequestId) {
+				featuredItems = [];
 			}
 		} finally {
-			if (requestId === zhealthSearchRequestId) {
-				zhealthItemsLoading = false;
+			if (requestId === featuredSearchRequestId) {
+				featuredItemsLoading = false;
 			}
 		}
 	};
@@ -212,7 +212,7 @@
 	const init = async () => {
 		reset();
 		await tick();
-		await Promise.all([getItemsPage(), loadZHealthItems()]);
+		await Promise.all([getItemsPage(), loadFeaturedItems()]);
 	};
 
 	const reset = () => {
@@ -262,13 +262,13 @@
 		return res;
 	};
 
-	$: if (loaded && zhealthQuery !== lastZHealthQuery) {
-		lastZHealthQuery = zhealthQuery;
-		if (zhealthSearchTimer) {
-			clearTimeout(zhealthSearchTimer);
+	$: if (loaded && featuredQuery !== lastFeaturedQuery) {
+		lastFeaturedQuery = featuredQuery;
+		if (featuredSearchTimer) {
+			clearTimeout(featuredSearchTimer);
 		}
-		zhealthSearchTimer = setTimeout(() => {
-			void loadZHealthItems();
+		featuredSearchTimer = setTimeout(() => {
+			void loadFeaturedItems();
 		}, 250);
 	}
 
@@ -278,8 +278,8 @@
 	});
 
 	onDestroy(() => {
-		if (zhealthSearchTimer) {
-			clearTimeout(zhealthSearchTimer);
+		if (featuredSearchTimer) {
+			clearTimeout(featuredSearchTimer);
 		}
 	});
 </script>
@@ -288,23 +288,23 @@
 	<div class="flex flex-col gap-0.5">
 		<div class="mb-1 border-b border-gray-100 pb-2 dark:border-gray-800">
 			<div class="mb-1 flex items-center justify-between gap-2 px-2 text-[11px] font-medium uppercase text-gray-500 dark:text-gray-400">
-				<div>{$i18n.t('ZHealth Chapters')}</div>
-				{#if zhealthItemsLoading}
+				<div>{$i18n.t('Featured Knowledge')}</div>
+				{#if featuredItemsLoading}
 					<Spinner className="size-3" />
 				{/if}
 			</div>
 
 			<input
 				class="mb-1 w-full rounded-lg border border-gray-100 bg-white px-2.5 py-1.5 text-xs outline-hidden placeholder:text-gray-400 focus:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-700"
-				bind:value={zhealthQuery}
-				placeholder={$i18n.t('Search course, chapter, or topic')}
-				aria-label={$i18n.t('Search ZHealth chapters')}
+				bind:value={featuredQuery}
+				placeholder={$i18n.t('Search collection, source, or topic')}
+				aria-label={$i18n.t('Search featured knowledge')}
 			/>
 
-			{#if zhealthItems.length > 0}
+			{#if featuredItems.length > 0}
 				<div class="max-h-64 overflow-y-auto pr-1">
-					{#each zhealthItems as item (item.id)}
-						{@const parsed = parseZHealthName(decodeString(item?.name))}
+					{#each featuredItems as item (item.id)}
+						{@const parsed = parseKnowledgeName(decodeString(item?.name))}
 						<button
 							class="w-full rounded-xl px-2.5 py-2 text-left text-sm transition hover:bg-gray-50 dark:hover:bg-gray-800 dark:hover:text-gray-100"
 							type="button"
@@ -323,10 +323,10 @@
 								<div class="min-w-0 flex-1">
 									<div class="flex min-w-0 items-center gap-1.5">
 										<div class="max-w-24 shrink-0 truncate rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-											{parsed.course}
+											{parsed.collection}
 										</div>
 										<div class="line-clamp-1 text-sm font-medium text-gray-900 dark:text-gray-100">
-											{parsed.chapter}
+											{parsed.topic}
 										</div>
 									</div>
 									{#if item.description}
@@ -339,9 +339,9 @@
 						</button>
 					{/each}
 				</div>
-			{:else if !zhealthItemsLoading}
+			{:else if !featuredItemsLoading}
 				<div class="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">
-					{$i18n.t('No ZHealth chapters found.')}
+					{$i18n.t('No featured knowledge found.')}
 				</div>
 			{/if}
 		</div>
