@@ -24,6 +24,8 @@
 	} from '$lib/stores';
 
 	import { uploadFile } from '$lib/apis/files';
+	import { getTerminalServers } from '$lib/apis/terminal';
+	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	import { toast } from 'svelte-sonner';
 
 	import Controls from './Controls/Controls.svelte';
@@ -60,6 +62,8 @@
 	let dragged = false;
 	let minSize = 0;
 	let paneReady = false;
+	let loadingSystemTerminals = false;
+	let systemTerminalsLoaded = false;
 
 	// Tab state for Controls+Files panel
 	let activeTab = savedTab;
@@ -69,13 +73,26 @@
 	}
 
 	$: hasMessages = history?.messages && Object.keys(history.messages).length > 0;
+	$: hasSystemTerminal = ($terminalServers ?? []).some((terminal) => terminal?.id);
+	$: hasSelectedSystemTerminal =
+		!!$selectedTerminalId &&
+		($terminalServers ?? []).some(
+			(terminal) => terminal?.id && terminal.id === $selectedTerminalId
+		);
+	$: hasSelectedDirectTerminal =
+		!!$selectedTerminalId &&
+		(($terminalServers ?? []).some(
+			(terminal) => !terminal?.id && terminal?.url === $selectedTerminalId
+		) ||
+			($settings?.terminalServers ?? []).some((terminal) => terminal?.url === $selectedTerminalId));
+	$: canUseDirectTerminals =
+		$user?.role === 'admin' || ($user?.permissions?.features?.direct_tool_servers ?? true);
+	$: hasTerminalForFiles =
+		hasSystemTerminal || (canUseDirectTerminals && hasSelectedDirectTerminal);
 
 	$: showControlsTab = $user?.role === 'admin' || ($user?.permissions?.chat?.controls ?? true);
 	$: showFilesTab =
-		($selectedTerminalId &&
-			(($terminalServers ?? []).some((t) => t.id && t.id === $selectedTerminalId) ||
-				$user?.role === 'admin' ||
-				($user?.permissions?.features?.direct_tool_servers ?? true))) ||
+		hasTerminalForFiles ||
 		(codeInterpreterEnabled && $config?.code?.interpreter_engine !== 'jupyter');
 	$: showOverviewTab = hasMessages;
 
@@ -109,11 +126,49 @@
 	// Clear selected direct terminal if user lost permission
 	$: if (
 		$selectedTerminalId &&
-		!($terminalServers ?? []).some((t) => t.id && t.id === $selectedTerminalId) &&
-		!($user?.role === 'admin' || ($user?.permissions?.features?.direct_tool_servers ?? true))
+		!hasSelectedSystemTerminal &&
+		!hasSelectedDirectTerminal &&
+		!canUseDirectTerminals
 	) {
 		selectedTerminalId.set(null);
 	}
+
+	const hydrateSystemTerminals = async () => {
+		if (loadingSystemTerminals || systemTerminalsLoaded) return;
+		if (hasSystemTerminal) {
+			systemTerminalsLoaded = true;
+			return;
+		}
+
+		const token = localStorage.token;
+		if (!token) {
+			systemTerminalsLoaded = true;
+			return;
+		}
+
+		loadingSystemTerminals = true;
+		try {
+			const systemTerminals = await getTerminalServers(token);
+			const systemEntries = systemTerminals
+				.filter((terminal) => terminal?.id)
+				.map((terminal) => ({
+					id: terminal.id,
+					url: `${WEBUI_API_BASE_URL}/terminals/${terminal.id}`,
+					name: terminal.name,
+					key: token
+				}));
+
+			if (systemEntries.length > 0) {
+				const directTerminals = ($terminalServers ?? []).filter((terminal) => !terminal?.id);
+				terminalServers.set([...directTerminals, ...systemEntries]);
+			}
+		} catch (err) {
+			console.error('Failed to load system terminal servers:', err);
+		} finally {
+			systemTerminalsLoaded = true;
+			loadingSystemTerminals = false;
+		}
+	};
 
 	// Attach a terminal file to the chat input
 	const handleTerminalAttach = async (blob: Blob, name: string, contentType: string) => {
@@ -199,6 +254,7 @@
 		const mediaQuery = window.matchMedia('(min-width: 1024px)');
 		mediaQuery.addEventListener('change', handleMediaQuery);
 		handleMediaQuery(mediaQuery);
+		void hydrateSystemTerminals();
 
 		let resizeObserver: ResizeObserver | null = null;
 		let isDestroyed = false;
@@ -373,7 +429,7 @@
 									}}
 									onClose={() => showControls.set(false)}
 								/>
-							{:else if activeTab === 'files' && $selectedTerminalId}
+							{:else if activeTab === 'files' && hasTerminalForFiles}
 								<FileNav onAttach={handleTerminalAttach} {chatId} />
 							{:else if activeTab === 'files' && codeInterpreterEnabled}
 								<PyodideFileNav />
@@ -524,7 +580,7 @@
 										}}
 										onClose={() => showControls.set(false)}
 									/>
-								{:else if activeTab === 'files' && $selectedTerminalId}
+								{:else if activeTab === 'files' && hasTerminalForFiles}
 									<FileNav onAttach={handleTerminalAttach} overlay={dragged} {chatId} />
 								{:else if activeTab === 'files' && codeInterpreterEnabled}
 									<PyodideFileNav overlay={dragged} />
