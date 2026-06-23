@@ -95,6 +95,7 @@
 	let floatingButtonsElement;
 	let showAddToNotesModal = false;
 	let selectedTextForNotes = '';
+	let selectedFloatingText = '';
 
 	let sourceIds = [];
 	$: getSourceIds(sources);
@@ -121,11 +122,35 @@
 		sourceIds = [...new Set(result)];
 	};
 
+	const getSelectionInsideContent = () => {
+		if (!contentContainerElement) {
+			return null;
+		}
+
+		const selection = window.getSelection();
+		if (!selection || selection.rangeCount === 0 || selection.toString().trim().length === 0) {
+			return null;
+		}
+
+		const range = selection.getRangeAt(0);
+		const commonAncestor = range.commonAncestorContainer;
+		const selectionNode =
+			commonAncestor.nodeType === Node.TEXT_NODE ? commonAncestor.parentElement : commonAncestor;
+
+		if (!selectionNode || !contentContainerElement.contains(selectionNode)) {
+			return null;
+		}
+
+		return { selection, range };
+	};
+
 	const updateButtonPosition = (event) => {
 		const buttonsContainerElement = document.getElementById(`floating-buttons-${id}`);
+		const eventTarget = event?.target;
 		if (
-			!contentContainerElement?.contains(event.target) &&
-			!buttonsContainerElement?.contains(event.target)
+			eventTarget &&
+			!contentContainerElement?.contains(eventTarget) &&
+			!buttonsContainerElement?.contains(eventTarget)
 		) {
 			closeFloatingButtons();
 			return;
@@ -134,15 +159,14 @@
 		setTimeout(async () => {
 			await tick();
 
-			if (!contentContainerElement?.contains(event.target)) return;
+			const selectionState = getSelectionInsideContent();
 
-			let selection = window.getSelection();
-
-			if (selection.toString().trim().length > 0) {
-				const range = selection.getRangeAt(0);
+			if (selectionState) {
+				const { selection, range } = selectionState;
 				const rect = range.getBoundingClientRect();
 
 				const parentRect = contentContainerElement.getBoundingClientRect();
+				selectedFloatingText = selection.toString();
 
 				// Adjust based on parent rect
 				const top = rect.bottom - parentRect.top;
@@ -186,6 +210,7 @@
 				floatingButtonsElement?.closeHandler();
 			}
 		}
+		selectedFloatingText = '';
 	};
 
 	const openAddToNotesModal = (text) => {
@@ -206,7 +231,10 @@
 	function attachListeners() {
 		if (!listenersAttached && contentContainerElement) {
 			contentContainerElement.addEventListener('mouseup', updateButtonPosition);
+			contentContainerElement.addEventListener('keyup', updateButtonPosition);
+			contentContainerElement.addEventListener('contextmenu', updateButtonPosition);
 			document.addEventListener('mouseup', updateButtonPosition);
+			document.addEventListener('keyup', updateButtonPosition);
 			document.addEventListener('keydown', keydownHandler);
 			listenersAttached = true;
 		}
@@ -215,7 +243,10 @@
 	function detachListeners() {
 		if (listenersAttached) {
 			contentContainerElement?.removeEventListener('mouseup', updateButtonPosition);
+			contentContainerElement?.removeEventListener('keyup', updateButtonPosition);
+			contentContainerElement?.removeEventListener('contextmenu', updateButtonPosition);
 			document.removeEventListener('mouseup', updateButtonPosition);
+			document.removeEventListener('keyup', updateButtonPosition);
 			document.removeEventListener('keydown', keydownHandler);
 			listenersAttached = false;
 		}
@@ -291,6 +322,7 @@
 		bind:this={floatingButtonsElement}
 		{id}
 		actions={$settings?.floatingActionButtons ?? []}
+		selectedText={selectedFloatingText}
 		onAddToNotes={(text) => {
 			openAddToNotesModal(text);
 		}}

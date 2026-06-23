@@ -9,13 +9,13 @@
 	export let id = '';
 
 	export let actions = [];
+	export let selectedText = '';
 	export let onSetInputText = (text) => {};
 	export let onAddToNotes = (text) => {};
 
 	let floatingInput = false;
 	let selectedAction = null;
 
-	let selectedText = '';
 	let floatingInputValue = '';
 
 	$: if (actions.length === 0) {
@@ -55,7 +55,8 @@
 	})();
 
 	const actionHandler = (actionId) => {
-		let selectedContent = selectedText
+		const currentSelectedText = selectedText || window.getSelection()?.toString() || '';
+		let selectedContent = currentSelectedText
 			.split('\n')
 			.map((line) => `> ${line}`)
 			.join('\n');
@@ -66,7 +67,7 @@
 		}
 
 		if (selectedAction.id === 'add-to-notes') {
-			onAddToNotes(selectedText);
+			onAddToNotes(currentSelectedText);
 			closeHandler();
 			return;
 		}
@@ -91,7 +92,7 @@
 			floatingInputValue = '';
 		}
 
-		prompt = prompt.replace('{{CONTENT}}', selectedText);
+		prompt = prompt.replace('{{CONTENT}}', currentSelectedText);
 		prompt = prompt.replace('{{SELECTED_CONTENT}}', selectedContent);
 
 		// Prepopulate the main chat input instead of inline streaming
@@ -101,7 +102,6 @@
 
 	export const closeHandler = () => {
 		selectedAction = null;
-		selectedText = '';
 		floatingInput = false;
 		floatingInputValue = '';
 	};
@@ -121,7 +121,6 @@
 					aria-label={action.label}
 					class="px-1.5 py-[1px] hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl flex items-center gap-1 min-w-fit transition"
 					on:click={async () => {
-						selectedText = window.getSelection().toString();
 						selectedAction = action;
 
 						if (action.prompt.includes('{{INPUT_CONTENT}}')) {
