@@ -16,6 +16,7 @@
 	import CheckCircle from '../icons/CheckCircle.svelte';
 	import Image from './Image.svelte';
 	import FullHeightIframe from './FullHeightIframe.svelte';
+	import N8nWorkflowRunCard from './N8nWorkflowRunCard.svelte';
 	import { settings } from '$lib/stores';
 
 	export let id: string = '';
@@ -218,7 +219,9 @@
 								{$i18n.t('Output')}
 							</div>
 							<div class="w-full max-w-none!">
-								{#if typeof parsedResult === 'object' && parsedResult !== null}
+								{#if typeof parsedResult === 'object' && parsedResult !== null && parsedResult?.type === 'n8n.workflow_run'}
+									<N8nWorkflowRunCard result={parsedResult} />
+								{:else if typeof parsedResult === 'object' && parsedResult !== null}
 									<pre
 										class="text-xs text-gray-600 dark:text-gray-300 whitespace-pre font-mono bg-gray-50 dark:bg-gray-900 rounded-lg p-2.5 overflow-x-auto">{JSON.stringify(
 											parsedResult,
