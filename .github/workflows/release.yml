@@ -23,24 +23,30 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Abort if package.json unchanged
+      - name: Detect package.json change
+        id: changes
         run: |
-          git diff --cached --diff-filter=d package.json || {
+          if jq -e '.commits[]? | (.added + .modified + .removed)[]? | select(. == "package.json")' "$GITHUB_EVENT_PATH" >/dev/null; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
             echo "package.json not modified — skipping release"
-            exit 1
-          }
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Read version
         id: pkg
+        if: steps.changes.outputs.changed == 'true'
         run: echo "version=$(jq -r '.version' package.json)" >> $GITHUB_OUTPUT
 
       - name: Extract release notes from CHANGELOG
+        if: steps.changes.outputs.changed == 'true'
         run: |
           VER="${{ steps.pkg.outputs.version }}"
           awk "/^## \[${VER}\]/{found=1; next} /^## \[/{if(found) exit} found{print}" \
             CHANGELOG.md > /tmp/release-notes.md
 
       - name: Publish GitHub release
+        if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -53,6 +59,7 @@ jobs:
           fi
 
       - name: Archive source
+        if: steps.changes.outputs.changed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: release-archive
@@ -63,10 +70,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Trigger Docker build
+        if: steps.changes.outputs.changed == 'true'
         uses: actions/github-script@v8
         with:
           script: |
-            github.rest.actions.createWorkflowDispatch({
+            await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'docker.yaml',
