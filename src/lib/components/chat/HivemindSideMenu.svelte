@@ -36,6 +36,9 @@
 	type ContextMode = 'off' | 'suggest' | 'auto';
 
 	const stateStorageKey = 'hivemind-side-menu-state';
+	const minPanelWidth = 360;
+	const defaultFilesPanelWidth = 760;
+	const defaultPanelWidth = 320;
 	const tabs: { id: SideMenuTab; label: string }[] = [
 		{ id: 'files', label: 'Files' },
 		{ id: 'context', label: 'Context' },
@@ -62,6 +65,8 @@
 	let resolvedConversationId = '';
 	let suppressNextAutoAttach = false;
 	let pendingFileNavPath: string | null = null;
+	let panelWidth = defaultFilesPanelWidth;
+	let resizingPanel = false;
 
 	type KnowledgeSearchItem = {
 		id?: string;
@@ -78,11 +83,21 @@
 		}
 
 		try {
-			localStorage.setItem(stateStorageKey, JSON.stringify({ activeTab, pinned, contextMode }));
+			localStorage.setItem(
+				stateStorageKey,
+				JSON.stringify({ activeTab, pinned, contextMode, panelWidth })
+			);
 		} catch {
 			// Ignore unavailable or blocked localStorage.
 		}
 	};
+
+	const clampPanelWidth = (width: number) => {
+		const maxWidth = Math.max(minPanelWidth, window.innerWidth - 112);
+		return Math.max(minPanelWidth, Math.min(maxWidth, width));
+	};
+
+	const getPanelWidth = () => (activeTab === 'files' ? panelWidth : defaultPanelWidth);
 
 	const selectTab = (tab: SideMenuTab) => {
 		activeTab = tab;
@@ -100,6 +115,35 @@
 		open = false;
 		pinned = false;
 		persistState();
+	};
+
+	const startPanelResize = (event: PointerEvent) => {
+		if (activeTab !== 'files') {
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		resizingPanel = true;
+		const startX = event.clientX;
+		const startWidth = panelWidth;
+
+		const handlePointerMove = (moveEvent: PointerEvent) => {
+			panelWidth = clampPanelWidth(startWidth + (startX - moveEvent.clientX));
+		};
+
+		const stopResize = () => {
+			resizingPanel = false;
+			persistState();
+			window.removeEventListener('pointermove', handlePointerMove);
+			window.removeEventListener('pointerup', stopResize);
+			window.removeEventListener('pointercancel', stopResize);
+		};
+
+		window.addEventListener('pointermove', handlePointerMove);
+		window.addEventListener('pointerup', stopResize);
+		window.addEventListener('pointercancel', stopResize);
 	};
 
 	const sideMenuTooltipOptions = {
@@ -273,7 +317,9 @@
 			const nextItems = allItems
 				.filter(isCorpusKnowledge)
 				.map(normalizeKnowledgeItem)
-				.sort((a, b) => normalizeKnowledgeName(a.name).localeCompare(normalizeKnowledgeName(b.name)));
+				.sort((a, b) =>
+					normalizeKnowledgeName(a.name).localeCompare(normalizeKnowledgeName(b.name))
+				);
 
 			if (updateList) {
 				corpusKnowledgeItems = nextItems;
@@ -331,6 +377,9 @@
 			if (['off', 'suggest', 'auto'].includes(savedState?.contextMode)) {
 				contextMode = savedState.contextMode;
 			}
+			if (Number.isFinite(savedState?.panelWidth)) {
+				panelWidth = clampPanelWidth(Number(savedState.panelWidth));
+			}
 			pinned = savedState?.pinned === true;
 			open = pinned;
 		} catch {
@@ -347,6 +396,7 @@
 		if (corpusSearchTimer) {
 			clearTimeout(corpusSearchTimer);
 		}
+		resizingPanel = false;
 	});
 
 	$: hasMessages = Object.keys(history?.messages ?? {}).length > 0;
@@ -375,7 +425,9 @@
 		hivemindFileNavRequest.set(null);
 		activeTab = 'files';
 		open = true;
-		setTimeout(() => { pendingFileNavPath = null; }, 0);
+		setTimeout(() => {
+			pendingFileNavPath = null;
+		}, 0);
 	}
 </script>
 
@@ -445,11 +497,30 @@
 			</div>
 
 			{#if open || pinned}
+				{#if activeTab === 'files'}
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<div
+						class="pointer-events-auto relative ml-2 flex w-3 shrink-0 cursor-col-resize items-center justify-center rounded-lg border border-gray-200 bg-white/80 shadow-sm transition hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950/80 dark:hover:border-gray-700"
+						class:ring-2={resizingPanel}
+						class:ring-blue-500={resizingPanel}
+						role="separator"
+						aria-orientation="vertical"
+						title={$i18n.t('Resize files panel')}
+						on:pointerdown={startPanelResize}
+					>
+						<div
+							class="h-16 w-1 rounded-full bg-gray-300 transition dark:bg-gray-700"
+							class:bg-blue-500={resizingPanel}
+						></div>
+					</div>
+				{/if}
 				<section
 					data-testid="hivemind-side-menu-panel"
-					class="ml-2 flex h-full {activeTab === 'files'
-						? 'w-[min(86vw,42rem)]'
-						: 'w-80'} max-w-[calc(100vw-7rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white/95 shadow-xl backdrop-blur dark:border-gray-800 dark:bg-gray-950/95"
+					class="flex h-full max-w-[calc(100vw-7rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white/95 shadow-xl backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 {activeTab ===
+					'files'
+						? ''
+						: 'ml-2'}"
+					style={`width: ${getPanelWidth()}px;`}
 					aria-label={$i18n.t(getTabLabel(activeTab))}
 					data-active-tab={activeTab}
 				>
