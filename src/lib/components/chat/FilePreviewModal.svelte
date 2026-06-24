@@ -12,10 +12,33 @@
 	export let onClose: () => void = () => {};
 
 	const filename = path.split('/').pop() ?? path;
-	const ext = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() ?? '' : '';
+	const ext = filename.includes('.') ? (filename.split('.').pop()?.toLowerCase() ?? '') : '';
 
 	const isMarkdown = ext === 'md' || ext === 'mdx';
-	const isCode = ['ts', 'tsx', 'js', 'jsx', 'py', 'sh', 'bash', 'json', 'yaml', 'yml', 'toml', 'css', 'html', 'svelte', 'vue', 'go', 'rs', 'rb', 'java', 'c', 'cpp', 'h'].includes(ext);
+	const isCode = [
+		'ts',
+		'tsx',
+		'js',
+		'jsx',
+		'py',
+		'sh',
+		'bash',
+		'json',
+		'yaml',
+		'yml',
+		'toml',
+		'css',
+		'html',
+		'svelte',
+		'vue',
+		'go',
+		'rs',
+		'rb',
+		'java',
+		'c',
+		'cpp',
+		'h'
+	].includes(ext);
 
 	function handleBackdropClick(e: MouseEvent) {
 		if (e.target === e.currentTarget) {
@@ -44,7 +67,9 @@
 		aria-modal="true"
 		aria-label={filename}
 	>
-		<header class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-900">
+		<header
+			class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-900"
+		>
 			<div class="min-w-0 flex-1">
 				<div class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{filename}</div>
 				{#if path !== filename}
@@ -74,8 +99,10 @@
 				</div>
 			{:else}
 				<pre
-					class="m-0 overflow-x-auto whitespace-pre-wrap break-words p-4 text-[12px] leading-relaxed {isCode || isMarkdown ? 'font-mono' : 'font-sans'} text-gray-800 dark:text-gray-200"
-				>{content}</pre>
+					class="m-0 overflow-x-auto whitespace-pre-wrap break-words p-4 text-[12px] leading-relaxed {isCode ||
+					isMarkdown
+						? 'font-mono'
+						: 'font-sans'} text-gray-800 dark:text-gray-200">{content}</pre>
 			{/if}
 		</div>
 	</div>

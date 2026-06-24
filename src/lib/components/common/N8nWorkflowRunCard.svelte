@@ -23,7 +23,9 @@
 	}
 </script>
 
-<div class="rounded-lg border border-gray-200 bg-white p-3 text-sm shadow-sm dark:border-gray-800 dark:bg-gray-950">
+<div
+	class="rounded-lg border border-gray-200 bg-white p-3 text-sm shadow-sm dark:border-gray-800 dark:bg-gray-950"
+>
 	<div class="flex flex-wrap items-start justify-between gap-2">
 		<div class="min-w-0">
 			<div class="text-[10px] font-medium uppercase text-gray-400 dark:text-gray-500">
@@ -58,7 +60,9 @@
 	</div>
 
 	{#if errors.length > 0}
-		<div class="mt-3 rounded-md bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-300">
+		<div
+			class="mt-3 rounded-md bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-300"
+		>
 			{#each errors as error}
 				<div>{error?.message ?? JSON.stringify(error)}</div>
 			{/each}
@@ -68,14 +72,22 @@
 	{#if outputs.length > 0}
 		<div class="mt-3 space-y-1.5">
 			{#each outputs.slice(0, 3) as output}
-				<div class="rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+				<div
+					class="rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-900 dark:text-gray-300"
+				>
 					{#if output?.node || output?.status}
 						<div class="font-medium">
-							{output?.node ?? 'n8n'}{#if output?.status} · {output.status}{/if}
+							{output?.node ?? 'n8n'}{#if output?.status}
+								· {output.status}{/if}
 						</div>
 					{/if}
 					{#if output?.data}
-						<pre class="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono">{JSON.stringify(output.data, null, 2)}</pre>
+						<pre
+							class="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono">{JSON.stringify(
+								output.data,
+								null,
+								2
+							)}</pre>
 					{/if}
 				</div>
 			{/each}

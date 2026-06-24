@@ -193,7 +193,9 @@
 
 			featuredItems = allItems
 				.filter(isFeaturedKnowledge)
-				.sort((a, b) => normalizeKnowledgeName(a.name).localeCompare(normalizeKnowledgeName(b.name)));
+				.sort((a, b) =>
+					normalizeKnowledgeName(a.name).localeCompare(normalizeKnowledgeName(b.name))
+				);
 		} catch {
 			if (requestId === featuredSearchRequestId) {
 				featuredItems = [];
@@ -287,7 +289,9 @@
 {#if loaded && items !== null}
 	<div class="flex flex-col gap-0.5">
 		<div class="mb-1 border-b border-gray-100 pb-2 dark:border-gray-800">
-			<div class="mb-1 flex items-center justify-between gap-2 px-2 text-[11px] font-medium uppercase text-gray-500 dark:text-gray-400">
+			<div
+				class="mb-1 flex items-center justify-between gap-2 px-2 text-[11px] font-medium uppercase text-gray-500 dark:text-gray-400"
+			>
 				<div>{$i18n.t('Featured Knowledge')}</div>
 				{#if featuredItemsLoading}
 					<Spinner className="size-3" />
@@ -322,7 +326,9 @@
 
 								<div class="min-w-0 flex-1">
 									<div class="flex min-w-0 items-center gap-1.5">
-										<div class="max-w-24 shrink-0 truncate rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+										<div
+											class="max-w-24 shrink-0 truncate rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+										>
 											{parsed.collection}
 										</div>
 										<div class="line-clamp-1 text-sm font-medium text-gray-900 dark:text-gray-100">
