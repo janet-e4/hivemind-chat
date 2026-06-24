@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1
+ARG BASE_IMAGE=ghcr.io/open-webui/open-webui:main
+ARG BUILD_HASH=dev-build
+ARG UID=0
+ARG GID=0
+
+FROM ${BASE_IMAGE} AS runtime
+ARG BUILD_HASH
+ARG UID
+ARG GID
+
+LABEL org.opencontainers.image.title="hivemind-chat" \
+      org.opencontainers.image.description="Generic Hivemind chat frontend/backend overlay for Open WebUI" \
+      org.opencontainers.image.source="https://github.com/janet-e4/hivemind-chat" \
+      org.opencontainers.image.revision="${BUILD_HASH}" \
+      org.hivemind.build.mode="prebuilt-frontend"
+
+USER root
+
+RUN rm -rf /app/build /app/backend
+
+COPY --chown=$UID:$GID --from=prebuilt / /app/build
+COPY --chown=$UID:$GID ./CHANGELOG.md /app/CHANGELOG.md
+COPY --chown=$UID:$GID ./package.json /app/package.json
+COPY --chown=$UID:$GID ./backend /app/backend
+
+USER $UID:$GID
+
+ENV WEBUI_BUILD_VERSION=${BUILD_HASH} \
+    DOCKER=true

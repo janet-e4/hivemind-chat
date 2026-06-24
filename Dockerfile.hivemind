@@ -1,0 +1,44 @@
+# syntax=docker/dockerfile:1
+ARG BASE_IMAGE=ghcr.io/open-webui/open-webui:main
+ARG BUILD_HASH=dev-build
+ARG UID=0
+ARG GID=0
+
+FROM --platform=$BUILDPLATFORM node:22-alpine3.20 AS build
+ARG BUILD_HASH
+
+ENV NODE_OPTIONS="--max-old-space-size=4096" \
+    CYPRESS_INSTALL_BINARY=0
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --force
+
+COPY . .
+ENV APP_BUILD_HASH=${BUILD_HASH}
+RUN --mount=type=cache,target=/app/static/pyodide npm run build
+
+FROM ${BASE_IMAGE} AS runtime
+ARG BUILD_HASH
+ARG UID
+ARG GID
+
+LABEL org.opencontainers.image.title="hivemind-chat" \
+      org.opencontainers.image.description="Generic Hivemind chat frontend/backend overlay for Open WebUI" \
+      org.opencontainers.image.source="https://github.com/janet-e4/hivemind-chat" \
+      org.opencontainers.image.revision="${BUILD_HASH}"
+
+USER root
+
+RUN rm -rf /app/build /app/backend
+
+COPY --chown=$UID:$GID --from=build /app/build /app/build
+COPY --chown=$UID:$GID --from=build /app/CHANGELOG.md /app/CHANGELOG.md
+COPY --chown=$UID:$GID --from=build /app/package.json /app/package.json
+COPY --chown=$UID:$GID ./backend /app/backend
+
+USER $UID:$GID
+
+ENV WEBUI_BUILD_VERSION=${BUILD_HASH} \
+    DOCKER=true

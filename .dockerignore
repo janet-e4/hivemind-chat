@@ -1,9 +1,13 @@
 .github
+.git
 .DS_Store
 docs
 kubernetes
 node_modules
 /.svelte-kit
+/build
+/static/pyodide
+/.hivemind
 /package
 .env
 .env.*
