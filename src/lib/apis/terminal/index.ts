@@ -81,6 +81,41 @@ export const listFiles = async (
 	return res?.entries ?? null;
 };
 
+export const searchFiles = async (
+	baseUrl: string,
+	apiKey: string,
+	query: string,
+	directory: string = '/',
+	recursive = false,
+	sessionId?: string
+): Promise<FileEntry[] | null> => {
+	const params = new URLSearchParams({
+		query,
+		directory,
+		recursive: recursive ? 'true' : 'false'
+	});
+	const url = `${baseUrl.replace(/\/$/, '')}/files/search?${params.toString()}`;
+	const headers: Record<string, string> = { Authorization: `Bearer ${apiKey}` };
+	if (sessionId) headers['X-Session-Id'] = sessionId;
+	const res = await fetch(url, { headers })
+		.then(async (res) => {
+			if (!res.ok) throw await res.json().catch(() => ({}));
+			return res.json();
+		})
+		.catch((err) => {
+			console.error('open-terminal searchFiles error:', err);
+			return null;
+		});
+	const items = res?.entries ?? res?.results ?? null;
+	if (!Array.isArray(items)) return null;
+	return items
+		.map((item) => ({
+			...item,
+			name: item.relative_path ?? item.relativePath ?? item.path ?? item.name ?? ''
+		}))
+		.filter((item) => item.name);
+};
+
 export const readFile = async (
 	baseUrl: string,
 	apiKey: string,

@@ -17,6 +17,7 @@
 		getCwd,
 		getTerminalConfig,
 		listFiles,
+		searchFiles,
 		readFile,
 		downloadFileBlob,
 		archiveFromTerminal,
@@ -91,6 +92,12 @@
 	let entries: FileEntry[] = [];
 	let loading = false;
 	let error: string | null = null;
+	let searchQuery = '';
+	let activeSearchQuery = '';
+	let recursiveSearch = true;
+	let searchLoading = false;
+	let searchResults: FileEntry[] = [];
+	let searchRunId = 0;
 
 	// ── Sort state ──────────────────────────────────────────────────────
 	type SortMode = 'name' | 'date';
@@ -119,6 +126,28 @@
 			sortAsc = mode === 'name'; // name defaults asc, date defaults asc (oldest first)
 		}
 		entries = sortEntries(entries);
+		searchResults = sortEntries(searchResults);
+	};
+
+	$: normalizedSearchQuery = activeSearchQuery.trim().toLowerCase();
+	$: displayedEntries = normalizedSearchQuery ? searchResults : entries;
+
+	const joinPath = (dir: string, name: string) => {
+		const normalizedDir = dir.endsWith('/') ? dir : `${dir}/`;
+		return `${normalizedDir}${name.replace(/^\/+/, '')}`;
+	};
+
+	const normalizeSearchEntry = (entry: FileEntry, basePath: string): FileEntry => {
+		let name = entry.name.replace(/\\/g, '/').replace(/^\.\//, '');
+
+		if (basePath !== '/' && name.startsWith(basePath)) {
+			name = name.slice(basePath.length);
+		} else if (basePath === '/' && name.startsWith('/')) {
+			name = name.slice(1);
+		}
+
+		name = name.replace(/^\/+/, '').replace(/\/+$/, '');
+		return { ...entry, name };
 	};
 
 	// ── Navigation history ──────────────────────────────────────────────
@@ -355,6 +384,7 @@
 		previewPort = null;
 		clearFilePreview();
 		clearSelection();
+		clearSearch();
 		currentPath = path;
 		savedPath = path;
 		pushNavHistory(path);
@@ -374,13 +404,111 @@
 		}
 	};
 
-	const openEntry = async (entry: FileEntry) => {
-		if (entry.type === 'directory') {
-			await loadDir(`${currentPath}${entry.name}/`);
+	const runSearch = async () => {
+		const terminal = selectedTerminal;
+		const query = searchQuery.trim();
+		const basePath = currentPath;
+		const runId = ++searchRunId;
+
+		if (!terminal || selectedFile) return;
+
+		activeSearchQuery = query;
+		searchResults = [];
+		clearSelection();
+
+		if (!query) {
+			searchLoading = false;
 			return;
 		}
 
-		const filePath = `${currentPath}${entry.name}`;
+		searchLoading = true;
+
+		const endpointResults = await searchFiles(
+			terminal.url,
+			terminal.key,
+			query,
+			basePath,
+			recursiveSearch,
+			chatId ?? undefined
+		);
+
+		if (runId !== searchRunId) return;
+
+		if (endpointResults) {
+			searchResults = sortEntries(
+				endpointResults
+					.map((entry) => normalizeSearchEntry(entry, basePath))
+					.filter((entry) => entry.name)
+			);
+			searchLoading = false;
+			return;
+		}
+
+		const normalizedQuery = query.toLowerCase();
+		const matches: FileEntry[] = [];
+		const pending = recursiveSearch ? [basePath] : [];
+		const visited = new Set<string>();
+		const maxVisitedDirs = 500;
+
+		if (!recursiveSearch) {
+			searchResults = sortEntries(
+				entries.filter((entry) => entry.name.toLowerCase().includes(normalizedQuery))
+			);
+			searchLoading = false;
+			return;
+		}
+
+		while (pending.length > 0 && visited.size < maxVisitedDirs) {
+			if (runId !== searchRunId) return;
+
+			const dir = pending.shift() ?? '/';
+			if (visited.has(dir)) continue;
+			visited.add(dir);
+
+			const result = await listFiles(terminal.url, terminal.key, dir, chatId ?? undefined);
+			if (runId !== searchRunId) return;
+			if (!result) continue;
+
+			for (const entry of result) {
+				const fullPath = joinPath(dir, entry.name);
+				const relativeName = fullPath.startsWith(basePath)
+					? fullPath.slice(basePath.length)
+					: fullPath;
+
+				if (
+					entry.name.toLowerCase().includes(normalizedQuery) ||
+					relativeName.toLowerCase().includes(normalizedQuery)
+				) {
+					matches.push({ ...entry, name: relativeName });
+				}
+
+				if (entry.type === 'directory') {
+					pending.push(`${fullPath}/`);
+				}
+			}
+		}
+
+		if (runId !== searchRunId) return;
+
+		searchResults = sortEntries(matches);
+		searchLoading = false;
+	};
+
+	const clearSearch = () => {
+		searchRunId += 1;
+		searchQuery = '';
+		activeSearchQuery = '';
+		searchResults = [];
+		searchLoading = false;
+	};
+
+	const openEntry = async (entry: FileEntry) => {
+		if (entry.type === 'directory') {
+			await loadDir(`${joinPath(currentPath, entry.name)}/`);
+			return;
+		}
+
+		const filePath = joinPath(currentPath, entry.name);
 		pushNavHistory(currentPath, filePath);
 
 		const terminal = selectedTerminal;
@@ -672,8 +800,8 @@
 
 	const selectAll = () => {
 		selectedEntries = new Set(
-			entries.map((e) => {
-				const p = `${currentPath}${e.name}`;
+			displayedEntries.map((e) => {
+				const p = joinPath(currentPath, e.name);
 				return e.type === 'directory' ? p + '/' : p;
 			})
 		);
@@ -681,9 +809,10 @@
 	};
 
 	const handleSelect = (entry: FileEntry, event: MouseEvent) => {
-		const path =
-			entry.type === 'directory' ? `${currentPath}${entry.name}/` : `${currentPath}${entry.name}`;
-		const idx = entries.indexOf(entry);
+		const entryPath = joinPath(currentPath, entry.name);
+		const path = entry.type === 'directory' ? `${entryPath}/` : entryPath;
+		const idx = displayedEntries.indexOf(entry);
+		if (idx === -1) return;
 
 		if (event.shiftKey && lastClickedIndex !== null) {
 			// Range select — replaces current selection with range
@@ -691,8 +820,9 @@
 			const end = Math.max(lastClickedIndex, idx);
 			const newSet = new Set<string>();
 			for (let i = start; i <= end; i++) {
-				const e = entries[i];
-				const p = e.type === 'directory' ? `${currentPath}${e.name}/` : `${currentPath}${e.name}`;
+				const e = displayedEntries[i];
+				const itemPath = joinPath(currentPath, e.name);
+				const p = e.type === 'directory' ? `${itemPath}/` : itemPath;
 				newSet.add(p);
 			}
 			selectedEntries = newSet;
@@ -874,6 +1004,7 @@
 	});
 
 	onDestroy(() => {
+		searchRunId += 1;
 		if (fileImageUrl) URL.revokeObjectURL(fileImageUrl);
 		if (fileVideoUrl) URL.revokeObjectURL(fileVideoUrl);
 		if (fileAudioUrl) URL.revokeObjectURL(fileAudioUrl);
@@ -1227,6 +1358,109 @@
 				</Tooltip>
 			</FileNavToolbar>
 
+			{#if selectedFile === null}
+				<div class="shrink-0 px-2 pb-1.5">
+					<div
+						class="flex items-center gap-2 rounded-md border border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/30 px-2 py-1"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+							class="size-3.5 shrink-0 text-gray-400 dark:text-gray-500"
+							aria-hidden="true"
+						>
+							<path
+								fill-rule="evenodd"
+								d="M9 3.5a5.5 5.5 0 1 0 3.473 9.765l2.631 2.632a.75.75 0 0 0 1.061-1.061l-2.632-2.631A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z"
+								clip-rule="evenodd"
+							/>
+						</svg>
+						<input
+							bind:value={searchQuery}
+							class="min-w-0 flex-1 bg-transparent text-xs text-gray-700 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none"
+							placeholder={$i18n.t('Search files')}
+							aria-label={$i18n.t('Search files')}
+							on:keydown={(e) => {
+								if (e.key === 'Enter') {
+									e.preventDefault();
+									e.stopPropagation();
+									runSearch();
+								}
+								if (e.key === 'Escape') {
+									e.preventDefault();
+									e.stopPropagation();
+									clearSearch();
+								}
+							}}
+						/>
+						{#if searchLoading}
+							<Spinner className="size-3.5 shrink-0 text-gray-400 dark:text-gray-500" />
+						{/if}
+						<Tooltip content={$i18n.t('Search')}>
+							<button
+								class="shrink-0 rounded p-0.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+								on:click={runSearch}
+								disabled={searchLoading}
+								aria-label={$i18n.t('Search')}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 20 20"
+									fill="currentColor"
+									class="size-3.5"
+								>
+									<path
+										fill-rule="evenodd"
+										d="M3.22 10.22a.75.75 0 0 1 1.06 0L8.25 14.19V3.75a.75.75 0 0 1 1.5 0v10.44l3.97-3.97a.75.75 0 1 1 1.06 1.06l-5.25 5.25a.75.75 0 0 1-1.06 0l-5.25-5.25a.75.75 0 0 1 0-1.06Z"
+										clip-rule="evenodd"
+									/>
+								</svg>
+							</button>
+						</Tooltip>
+						{#if searchQuery || activeSearchQuery}
+							<Tooltip content={$i18n.t('Clear search')}>
+								<button
+									class="shrink-0 rounded p-0.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+									on:click={clearSearch}
+									aria-label={$i18n.t('Clear search')}
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 20 20"
+										fill="currentColor"
+										class="size-3.5"
+									>
+										<path
+											d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"
+										/>
+									</svg>
+								</button>
+							</Tooltip>
+						{/if}
+						<label
+							class="flex shrink-0 select-none items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400"
+						>
+							<input
+								type="checkbox"
+								bind:checked={recursiveSearch}
+								class="size-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-850"
+								aria-label={$i18n.t('Recursive search')}
+							/>
+							<span>{$i18n.t('Recursive')}</span>
+						</label>
+					</div>
+					{#if normalizedSearchQuery}
+						<div class="mt-1 px-1 text-[10px] text-gray-400 dark:text-gray-500">
+							{$i18n.t('{{count}} of {{total}} items', {
+								count: displayedEntries.length,
+								total: recursiveSearch ? displayedEntries.length : entries.length
+							})}
+						</div>
+					{/if}
+				</div>
+			{/if}
+
 			<!-- Bulk action bar -->
 			{#if selectedCount > 0}
 				<BulkActionBar
@@ -1312,6 +1546,16 @@
 					<div class="flex justify-center pt-8"><Spinner className="size-4" /></div>
 				{:else if error}
 					<div class="p-4 text-xs">{error}</div>
+				{:else if normalizedSearchQuery && displayedEntries.length === 0 && !creatingFolder && !creatingFile}
+					<div class="flex flex-col items-center justify-center gap-1.5 py-12 text-center">
+						<Folder className="size-6 text-gray-200 dark:text-gray-700" />
+						<div class="text-xs text-gray-400 dark:text-gray-500">
+							{$i18n.t('No matching files')}
+						</div>
+						<div class="max-w-full px-4 text-[11px] text-gray-300 dark:text-gray-600 truncate">
+							{searchQuery}
+						</div>
+					</div>
 				{:else if entries.length === 0 && !creatingFolder && !creatingFile}
 					<div class="flex flex-col items-center justify-center gap-1.5 py-12 text-center">
 						<Folder className="size-6 text-gray-200 dark:text-gray-700" />
@@ -1364,9 +1608,9 @@
 						</div>
 					{/if}
 
-					{#if entries.length > 0 || creatingFolder || creatingFile}
+					{#if displayedEntries.length > 0 || creatingFolder || creatingFile}
 						<ul>
-							{#each entries as entry}
+							{#each displayedEntries as entry}
 								<FileEntryRow
 									{entry}
 									{currentPath}
@@ -1374,8 +1618,8 @@
 									terminalKey={selectedTerminal.key}
 									selected={selectedEntries.has(
 										entry.type === 'directory'
-											? `${currentPath}${entry.name}/`
-											: `${currentPath}${entry.name}`
+											? `${joinPath(currentPath, entry.name)}/`
+											: joinPath(currentPath, entry.name)
 									)}
 									{selectionMode}
 									selectedPaths={selectedEntries}
