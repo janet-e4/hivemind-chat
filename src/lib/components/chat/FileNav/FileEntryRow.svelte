@@ -30,16 +30,21 @@
 	export let selectedPaths: Set<string> = new Set();
 	export let onSelect: (entry: FileEntry, event: MouseEvent) => void = () => {};
 	export let onLongPress: () => void = () => {};
-	export let showDate: boolean = false;
+	const formatDate = (epoch?: number): string => {
+		if (!epoch) return '—';
+		return new Intl.DateTimeFormat(undefined, {
+			month: 'numeric',
+			day: 'numeric',
+			year: '2-digit'
+		}).format(new Date(epoch * 1000));
+	};
 
-	const formatRelativeTime = (epoch: number): string => {
-		const diff = Math.floor(Date.now() / 1000) - epoch;
-		if (diff < 60) return 'just now';
-		if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-		if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-		if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`;
-		if (diff < 31536000) return `${Math.floor(diff / 2592000)}mo ago`;
-		return `${Math.floor(diff / 31536000)}y ago`;
+	const formatDateTitle = (epoch?: number): string | undefined => {
+		if (!epoch) return undefined;
+		return new Intl.DateTimeFormat(undefined, {
+			dateStyle: 'medium',
+			timeStyle: 'short'
+		}).format(new Date(epoch * 1000));
 	};
 
 	let dragOverFolder = false;
@@ -171,7 +176,7 @@
 		}}
 	>
 		<button
-			class="flex-1 flex items-center gap-2 px-3 py-1.5 text-left min-w-0"
+			class="flex-1 grid grid-cols-[minmax(0,1fr)_4.25rem_5rem_5rem] items-center gap-2 px-3 py-1.5 text-left min-w-0"
 			draggable={true}
 			on:dragstart={(e) => {
 				const filePath = `${currentPath}${entry.name}`;
@@ -215,82 +220,89 @@
 				startRename();
 			}}
 		>
-			{#if selectionMode || selected}
-				<!-- Checkbox indicator -->
-				<div
-					class="size-3.5 shrink-0 rounded border transition-colors flex items-center justify-center
-						{selected
-						? 'bg-blue-500 dark:bg-blue-600 border-blue-500 dark:border-blue-600 text-white'
-						: 'border-gray-300 dark:border-gray-600'}"
-				>
-					{#if selected}
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							viewBox="0 0 20 20"
-							fill="currentColor"
-							class="size-2.5"
-						>
-							<path
-								fill-rule="evenodd"
-								d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z"
-								clip-rule="evenodd"
-							/>
-						</svg>
-					{/if}
-				</div>
-			{/if}
-			{#if entry.type === 'directory'}
-				<Folder className="size-4 shrink-0 text-blue-400 dark:text-blue-300" />
-			{:else}
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.5"
-					class="size-4 shrink-0 text-gray-400"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-					/>
-				</svg>
-			{/if}
-			{#if renaming}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<input
-					bind:this={renameInput}
-					bind:value={renameValue}
-					class="flex-1 text-xs bg-transparent border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 outline-none focus:border-blue-400 dark:focus:border-blue-500 text-gray-800 dark:text-gray-200 min-w-0"
-					on:keydown={(e) => {
-						if (e.key === 'Enter') {
-							e.preventDefault();
-							submitRename();
-						}
-						if (e.key === 'Escape') {
-							e.preventDefault();
-							cancelRename();
-						}
-					}}
-					on:blur={submitRename}
-					on:click|stopPropagation
-				/>
-			{:else}
-				<span class="flex-1 text-xs text-gray-800 dark:text-gray-200 truncate">
-					{entry.name}
-				</span>
-			{/if}
-			{#if entry.type === 'file' && entry.size !== undefined && !renaming}
-				{#if showDate && entry.modified}
-					<span class="text-[10px] text-gray-400 shrink-0"
-						>{formatRelativeTime(entry.modified)}</span
+			<div class="flex items-center gap-2 min-w-0">
+				{#if selectionMode || selected}
+					<!-- Checkbox indicator -->
+					<div
+						class="size-3.5 shrink-0 rounded border transition-colors flex items-center justify-center
+							{selected
+							? 'bg-blue-500 dark:bg-blue-600 border-blue-500 dark:border-blue-600 text-white'
+							: 'border-gray-300 dark:border-gray-600'}"
 					>
+						{#if selected}
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+								class="size-2.5"
+							>
+								<path
+									fill-rule="evenodd"
+									d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z"
+									clip-rule="evenodd"
+								/>
+							</svg>
+						{/if}
+					</div>
 				{/if}
-				<span class="text-xs text-gray-400 shrink-0">{formatFileSize(entry.size)}</span>
-			{:else if entry.type === 'directory' && showDate && entry.modified && !renaming}
-				<span class="text-[10px] text-gray-400 shrink-0">{formatRelativeTime(entry.modified)}</span>
-			{/if}
+				{#if entry.type === 'directory'}
+					<Folder className="size-4 shrink-0 text-blue-400 dark:text-blue-300" />
+				{:else}
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.5"
+						class="size-4 shrink-0 text-gray-400"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
+						/>
+					</svg>
+				{/if}
+				{#if renaming}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<input
+						bind:this={renameInput}
+						bind:value={renameValue}
+						class="flex-1 text-xs bg-transparent border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 outline-none focus:border-blue-400 dark:focus:border-blue-500 text-gray-800 dark:text-gray-200 min-w-0"
+						on:keydown={(e) => {
+							if (e.key === 'Enter') {
+								e.preventDefault();
+								submitRename();
+							}
+							if (e.key === 'Escape') {
+								e.preventDefault();
+								cancelRename();
+							}
+						}}
+						on:blur={submitRename}
+						on:click|stopPropagation
+					/>
+				{:else}
+					<span class="flex-1 text-xs text-gray-800 dark:text-gray-200 truncate">
+						{entry.name}
+					</span>
+				{/if}
+			</div>
+			<span class="text-[11px] text-gray-400 dark:text-gray-500 shrink-0 truncate text-right">
+				{entry.type === 'file' && entry.size !== undefined ? formatFileSize(entry.size) : '—'}
+			</span>
+			<span
+				class="text-[10px] text-gray-400 dark:text-gray-500 shrink-0 truncate text-right"
+				title={formatDateTitle(entry.modified)}
+			>
+				{formatDate(entry.modified)}
+			</span>
+			<span
+				class="text-[10px] text-gray-400 dark:text-gray-500 shrink-0 truncate text-right"
+				title={formatDateTitle(entry.created)}
+			>
+				{formatDate(entry.created)}
+			</span>
 		</button>
 
 		<Dropdown align="end" sideOffset={4}>

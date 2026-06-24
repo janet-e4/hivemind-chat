@@ -100,7 +100,7 @@
 	let searchRunId = 0;
 
 	// ── Sort state ──────────────────────────────────────────────────────
-	type SortMode = 'name' | 'date';
+	type SortMode = 'name' | 'modified' | 'created' | 'size';
 	let sortBy: SortMode = 'name';
 	let sortAsc = true;
 
@@ -108,10 +108,20 @@
 		return [...items].sort((a, b) => {
 			// Directories always first
 			if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-			if (sortBy === 'date') {
+			if (sortBy === 'modified') {
 				const aTime = a.modified ?? 0;
 				const bTime = b.modified ?? 0;
 				return sortAsc ? aTime - bTime : bTime - aTime;
+			}
+			if (sortBy === 'created') {
+				const aTime = a.created ?? 0;
+				const bTime = b.created ?? 0;
+				return sortAsc ? aTime - bTime : bTime - aTime;
+			}
+			if (sortBy === 'size') {
+				const aSize = a.type === 'directory' ? -1 : (a.size ?? 0);
+				const bSize = b.type === 'directory' ? -1 : (b.size ?? 0);
+				return sortAsc ? aSize - bSize : bSize - aSize;
 			}
 			const cmp = a.name.localeCompare(b.name);
 			return sortAsc ? cmp : -cmp;
@@ -123,7 +133,7 @@
 			sortAsc = !sortAsc;
 		} else {
 			sortBy = mode;
-			sortAsc = mode === 'name'; // name defaults asc, date defaults asc (oldest first)
+			sortAsc = mode === 'name';
 		}
 		entries = sortEntries(entries);
 		searchResults = sortEntries(searchResults);
@@ -1459,6 +1469,45 @@
 						</div>
 					{/if}
 				</div>
+				{#if !loading && !error && !uploading && (displayedEntries.length > 0 || normalizedSearchQuery)}
+					<div
+						class="shrink-0 grid grid-cols-[minmax(0,1fr)_4.25rem_5rem_5rem_1.75rem] items-center gap-2 border-y border-gray-100 dark:border-gray-800 bg-white/80 dark:bg-gray-950/80 px-3 py-1 text-[10px] font-medium uppercase text-gray-400 dark:text-gray-500"
+					>
+						<button
+							type="button"
+							class="min-w-0 truncate text-left hover:text-gray-600 dark:hover:text-gray-300"
+							on:click={() => toggleSort('name')}
+							title={$i18n.t('Sort by name')}
+						>
+							{$i18n.t('Name')}{sortBy === 'name' ? (sortAsc ? ' ↑' : ' ↓') : ''}
+						</button>
+						<button
+							type="button"
+							class="truncate text-right hover:text-gray-600 dark:hover:text-gray-300"
+							on:click={() => toggleSort('size')}
+							title={$i18n.t('Sort by size')}
+						>
+							{$i18n.t('Size')}{sortBy === 'size' ? (sortAsc ? ' ↑' : ' ↓') : ''}
+						</button>
+						<button
+							type="button"
+							class="truncate text-right hover:text-gray-600 dark:hover:text-gray-300"
+							on:click={() => toggleSort('modified')}
+							title={$i18n.t('Sort by modified date')}
+						>
+							{$i18n.t('Modified')}{sortBy === 'modified' ? (sortAsc ? ' ↑' : ' ↓') : ''}
+						</button>
+						<button
+							type="button"
+							class="truncate text-right hover:text-gray-600 dark:hover:text-gray-300"
+							on:click={() => toggleSort('created')}
+							title={$i18n.t('Sort by created date')}
+						>
+							{$i18n.t('Created')}{sortBy === 'created' ? (sortAsc ? ' ↑' : ' ↓') : ''}
+						</button>
+						<div aria-hidden="true"></div>
+					</div>
+				{/if}
 			{/if}
 
 			<!-- Bulk action bar -->
@@ -1630,7 +1679,6 @@
 									onRename={handleRename}
 									onSelect={handleSelect}
 									onLongPress={enterSelectionMode}
-									showDate={sortBy === 'date'}
 								/>
 							{/each}
 						</ul>

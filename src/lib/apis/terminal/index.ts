@@ -3,6 +3,7 @@ export type FileEntry = {
 	type: 'file' | 'directory';
 	size?: number;
 	modified?: number;
+	created?: number;
 };
 
 export type ListeningPort = {
@@ -22,6 +23,39 @@ export type TerminalServer = {
 	url: string;
 	name: string;
 };
+
+const toEpochSeconds = (value: unknown): number | undefined => {
+	if (typeof value === 'number') {
+		return value > 10_000_000_000 ? Math.floor(value / 1000) : value;
+	}
+
+	if (typeof value === 'string' && value.trim()) {
+		const numeric = Number(value);
+		if (Number.isFinite(numeric)) {
+			return numeric > 10_000_000_000 ? Math.floor(numeric / 1000) : numeric;
+		}
+
+		const parsed = Date.parse(value);
+		if (Number.isFinite(parsed)) return Math.floor(parsed / 1000);
+	}
+};
+
+const normalizeFileEntry = (item: any): FileEntry => ({
+	...item,
+	name: item.relative_path ?? item.relativePath ?? item.path ?? item.name ?? '',
+	size: typeof item.size === 'number' ? item.size : Number(item.size) || undefined,
+	modified: toEpochSeconds(
+		item.modified ?? item.modified_at ?? item.modifiedAt ?? item.mtime ?? item.mtimeMs
+	),
+	created: toEpochSeconds(
+		item.created ??
+			item.created_at ??
+			item.createdAt ??
+			item.ctime ??
+			item.birthtime ??
+			item.birthtimeMs
+	)
+});
 
 export const getTerminalServers = async (token: string): Promise<TerminalServer[]> => {
 	const res = await fetch(`${WEBUI_API_BASE_URL}/terminals/`, {
@@ -78,7 +112,7 @@ export const listFiles = async (
 			console.error('open-terminal listFiles error:', err);
 			return null;
 		});
-	return res?.entries ?? null;
+	return Array.isArray(res?.entries) ? res.entries.map(normalizeFileEntry) : null;
 };
 
 export const searchFiles = async (
@@ -108,12 +142,7 @@ export const searchFiles = async (
 		});
 	const items = res?.entries ?? res?.results ?? null;
 	if (!Array.isArray(items)) return null;
-	return items
-		.map((item) => ({
-			...item,
-			name: item.relative_path ?? item.relativePath ?? item.path ?? item.name ?? ''
-		}))
-		.filter((item) => item.name);
+	return items.map(normalizeFileEntry).filter((item) => item.name);
 };
 
 export const readFile = async (

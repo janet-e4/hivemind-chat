@@ -23,9 +23,17 @@
 	export let onMove: (source: string, destFolder: string) => void = () => {};
 
 	// Sort controls
-	export let sortBy: 'name' | 'date' = 'name';
+	type SortMode = 'name' | 'modified' | 'created' | 'size';
+	export let sortBy: SortMode = 'name';
 	export let sortAsc: boolean = true;
-	export let onSort: (mode: 'name' | 'date') => void = () => {};
+	export let onSort: (mode: SortMode) => void = () => {};
+
+	const sortOptions: { mode: SortMode; label: string }[] = [
+		{ mode: 'name', label: 'Name' },
+		{ mode: 'size', label: 'Size' },
+		{ mode: 'modified', label: 'Modified' },
+		{ mode: 'created', label: 'Created' }
+	];
 
 	// Back / forward navigation
 	export let canGoBack = false;
@@ -190,52 +198,31 @@
 				<div
 					class="min-w-[150px] rounded-2xl p-1 z-[9999999] bg-white dark:bg-gray-850 dark:text-white shadow-lg border border-gray-100 dark:border-gray-800"
 				>
-					<button
-						type="button"
-						class="select-none flex rounded-xl py-1.5 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition items-center gap-2 text-sm"
-						on:click={() => onSort('name')}
-					>
-						<span class="flex-1 text-left">{$i18n.t('Name')}</span>
-						{#if sortBy === 'name'}
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								viewBox="0 0 16 16"
-								fill="currentColor"
-								class="size-3 text-gray-500 dark:text-gray-400 transition-transform {sortAsc
-									? ''
-									: 'rotate-180'}"
-							>
-								<path
-									fill-rule="evenodd"
-									d="M11.78 9.78a.75.75 0 0 1-1.06 0L8 7.06 5.28 9.78a.75.75 0 0 1-1.06-1.06l3.25-3.25a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06Z"
-									clip-rule="evenodd"
-								/>
-							</svg>
-						{/if}
-					</button>
-					<button
-						type="button"
-						class="select-none flex rounded-xl py-1.5 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition items-center gap-2 text-sm"
-						on:click={() => onSort('date')}
-					>
-						<span class="flex-1 text-left">{$i18n.t('Date Modified')}</span>
-						{#if sortBy === 'date'}
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								viewBox="0 0 16 16"
-								fill="currentColor"
-								class="size-3 text-gray-500 dark:text-gray-400 transition-transform {sortAsc
-									? ''
-									: 'rotate-180'}"
-							>
-								<path
-									fill-rule="evenodd"
-									d="M11.78 9.78a.75.75 0 0 1-1.06 0L8 7.06 5.28 9.78a.75.75 0 0 1-1.06-1.06l3.25-3.25a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06Z"
-									clip-rule="evenodd"
-								/>
-							</svg>
-						{/if}
-					</button>
+					{#each sortOptions as option}
+						<button
+							type="button"
+							class="select-none flex rounded-xl py-1.5 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition items-center gap-2 text-sm"
+							on:click={() => onSort(option.mode)}
+						>
+							<span class="flex-1 text-left">{$i18n.t(option.label)}</span>
+							{#if sortBy === option.mode}
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 16 16"
+									fill="currentColor"
+									class="size-3 text-gray-500 dark:text-gray-400 transition-transform {sortAsc
+										? ''
+										: 'rotate-180'}"
+								>
+									<path
+										fill-rule="evenodd"
+										d="M11.78 9.78a.75.75 0 0 1-1.06 0L8 7.06 5.28 9.78a.75.75 0 0 1-1.06-1.06l3.25-3.25a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06Z"
+										clip-rule="evenodd"
+									/>
+								</svg>
+							{/if}
+						</button>
+					{/each}
 				</div>
 			</div>
 		</Dropdown>
