@@ -12,6 +12,8 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import ConversationMinimap from '$lib/components/chat/ConversationMinimap.svelte';
 	import InstanceFileManager from '$lib/components/chat/InstanceFileManager.svelte';
+	import ChevronLeft from '$lib/components/icons/ChevronLeft.svelte';
+	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
 	import Database from '$lib/components/icons/Database.svelte';
 	import Document from '$lib/components/icons/Document.svelte';
 	import Folder from '$lib/components/icons/Folder.svelte';
@@ -102,6 +104,14 @@
 	const selectTab = (tab: SideMenuTab) => {
 		activeTab = tab;
 		open = true;
+		persistState();
+	};
+
+	const togglePanel = () => {
+		open = !(open || pinned);
+		if (!open) {
+			pinned = false;
+		}
 		persistState();
 	};
 
@@ -494,22 +504,47 @@
 						/>
 					{/if}
 				</div>
+
+				<div class="shrink-0 border-t border-gray-100 p-1.5 dark:border-gray-900">
+					<Tooltip
+						content={open || pinned ? $i18n.t('Collapse panel') : $i18n.t('Open panel')}
+						placement="left"
+						interactive={true}
+						tippyOptions={sideMenuTooltipOptions}
+					>
+						<button
+							type="button"
+							class="flex h-9 w-full items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-xs transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-gray-500/60 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300 dark:hover:border-gray-700 dark:hover:bg-gray-900 dark:hover:text-gray-100"
+							aria-label={open || pinned ? $i18n.t('Collapse panel') : $i18n.t('Open panel')}
+							aria-expanded={open || pinned}
+							data-testid="hivemind-side-menu-toggle"
+							on:click={togglePanel}
+						>
+							{#if open || pinned}
+								<ChevronRight className="size-4" strokeWidth="2.5" />
+							{:else}
+								<ChevronLeft className="size-4" strokeWidth="2.5" />
+							{/if}
+						</button>
+					</Tooltip>
+				</div>
 			</div>
 
 			{#if open || pinned}
 				{#if activeTab === 'files'}
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<div
-						class="pointer-events-auto relative ml-2 flex w-3 shrink-0 cursor-col-resize items-center justify-center rounded-lg border border-gray-200 bg-white/80 shadow-sm transition hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950/80 dark:hover:border-gray-700"
+						class="pointer-events-auto relative ml-2 flex w-5 shrink-0 cursor-col-resize items-center justify-center rounded-lg border border-blue-500/40 bg-white/90 shadow-sm transition hover:border-blue-500 dark:border-blue-500/40 dark:bg-gray-950/90 dark:hover:border-blue-400"
 						class:ring-2={resizingPanel}
 						class:ring-blue-500={resizingPanel}
 						role="separator"
 						aria-orientation="vertical"
 						title={$i18n.t('Resize files panel')}
+						data-testid="hivemind-side-menu-resize-handle"
 						on:pointerdown={startPanelResize}
 					>
 						<div
-							class="h-16 w-1 rounded-full bg-gray-300 transition dark:bg-gray-700"
+							class="h-16 w-1.5 rounded-full bg-blue-500/70 transition dark:bg-blue-400/70"
 							class:bg-blue-500={resizingPanel}
 						></div>
 					</div>
