@@ -212,6 +212,18 @@
 		}
 	};
 
+	const openSidePanel = () => {
+		if (showFilesTab) activeTab = 'files';
+		showControls.set(true);
+		void tick().then(() => {
+			if (pane) openPane();
+		});
+	};
+
+	const closeSidePanel = () => {
+		showControls.set(false);
+	};
+
 	export const openPane = () => {
 		if (parseInt(localStorage?.chatControlsSize)) {
 			const container = document.getElementById('chat-container');
@@ -445,13 +457,59 @@
 {:else}
 	{#if $showControls}
 		<PaneResizer
-			class="relative flex items-center justify-center group border-l border-gray-50 dark:border-gray-850/30 hover:border-gray-200 dark:hover:border-gray-800 transition z-20"
+			class="relative flex w-3 items-center justify-center group border-l border-gray-100 dark:border-gray-850/60 hover:border-gray-300 dark:hover:border-gray-700 transition z-20 bg-white/70 dark:bg-gray-900/50"
 			id="controls-resizer"
 		>
 			<div
-				class="absolute -left-1.5 -right-1.5 -top-0 -bottom-0 z-20 cursor-col-resize bg-transparent"
+				class="absolute -left-2 -right-2 -top-0 -bottom-0 z-20 cursor-col-resize bg-transparent"
 			/>
+			<div
+				class="pointer-events-none h-16 w-1 rounded-full bg-gray-200 opacity-80 transition group-hover:bg-gray-400 dark:bg-gray-700 dark:group-hover:bg-gray-500"
+			></div>
+			<Tooltip content={$i18n.t('Collapse sidebar')}>
+				<button
+					type="button"
+					class="absolute top-1/2 z-30 flex size-6 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+					on:click|stopPropagation={closeSidePanel}
+					aria-label={$i18n.t('Collapse sidebar')}
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 20 20"
+						fill="currentColor"
+						class="size-3.5"
+					>
+						<path
+							fill-rule="evenodd"
+							d="M12.28 5.22a.75.75 0 0 1 0 1.06L8.56 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z"
+							clip-rule="evenodd"
+						/>
+					</svg>
+				</button>
+			</Tooltip>
 		</PaneResizer>
+	{:else if showFilesTab || showControlsTab || showOverviewTab}
+		<Tooltip content={$i18n.t('Open sidebar')}>
+			<button
+				type="button"
+				class="absolute right-0 top-1/2 z-30 flex h-16 w-5 -translate-y-1/2 items-center justify-center rounded-l-lg border border-r-0 border-gray-200 bg-white text-gray-500 shadow-sm transition hover:w-7 hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+				on:click={openSidePanel}
+				aria-label={$i18n.t('Open sidebar')}
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="size-3.5"
+				>
+					<path
+						fill-rule="evenodd"
+						d="M7.72 14.78a.75.75 0 0 1 0-1.06L11.44 10 7.72 6.28a.75.75 0 0 1 1.06-1.06l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0Z"
+						clip-rule="evenodd"
+					/>
+				</svg>
+			</button>
+		</Tooltip>
 	{/if}
 
 	<Pane
