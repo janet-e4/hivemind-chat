@@ -69,6 +69,7 @@
 	let pendingFileNavPath: string | null = null;
 	let panelWidth = defaultFilesPanelWidth;
 	let resizingPanel = false;
+	let panelElement: HTMLElement | null = null;
 	let resizeHandleElement: HTMLDivElement | null = null;
 	let stopPanelResizeListeners: (() => void) | null = null;
 
@@ -103,6 +104,8 @@
 
 	const getPanelWidth = () => (activeTab === 'files' ? panelWidth : defaultPanelWidth);
 
+	const getRenderedPanelWidth = () => panelElement?.getBoundingClientRect().width ?? panelWidth;
+
 	const selectTab = (tab: SideMenuTab) => {
 		activeTab = tab;
 		open = true;
@@ -133,7 +136,7 @@
 		if (activeTab !== 'files') {
 			return;
 		}
-		panelWidth = clampPanelWidth(panelWidth + delta);
+		panelWidth = clampPanelWidth(getRenderedPanelWidth() + delta);
 		persistState();
 	};
 
@@ -155,7 +158,7 @@
 
 		resizingPanel = true;
 		const startX = event.clientX;
-		const startWidth = panelWidth;
+		const startWidth = getRenderedPanelWidth();
 
 		const handlePanelMove = (moveEvent: PointerEvent | MouseEvent) => {
 			panelWidth = clampPanelWidth(startWidth + (startX - moveEvent.clientX));
@@ -603,9 +606,10 @@
 							class:bg-blue-500={resizingPanel}
 						></div>
 					</div>
-				{/if}
-				<section
-					data-testid="hivemind-side-menu-panel"
+					{/if}
+					<section
+						bind:this={panelElement}
+						data-testid="hivemind-side-menu-panel"
 					class="flex h-full max-w-[calc(100vw-7rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white/95 shadow-xl backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 {activeTab ===
 					'files'
 						? ''
