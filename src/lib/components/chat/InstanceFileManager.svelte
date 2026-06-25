@@ -336,7 +336,7 @@
 
 		if (runId !== searchRunId) return;
 
-		if (endpointResults) {
+		if (endpointResults && endpointResults.length > 0) {
 			searchResults = sortEntries(
 				endpointResults
 					.map((entry) => normalizeSearchEntry(entry, basePath))
