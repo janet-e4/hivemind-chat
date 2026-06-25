@@ -57,6 +57,8 @@ const normalizeFileEntry = (item: any): FileEntry => ({
 	)
 });
 
+const escapeGlobPattern = (value: string): string => value.replace(/([*?[\\\]{}!])/g, '\\$1');
+
 export const getTerminalServers = async (token: string): Promise<TerminalServer[]> => {
 	const res = await fetch(`${WEBUI_API_BASE_URL}/terminals/`, {
 		headers: {
@@ -124,11 +126,12 @@ export const searchFiles = async (
 	sessionId?: string
 ): Promise<FileEntry[] | null> => {
 	const params = new URLSearchParams({
-		query,
-		directory,
-		recursive: recursive ? 'true' : 'false'
+		pattern: `*${escapeGlobPattern(query)}*`,
+		path: directory,
+		type: 'any',
+		max_results: '500'
 	});
-	const url = `${baseUrl.replace(/\/$/, '')}/files/search?${params.toString()}`;
+	const url = `${baseUrl.replace(/\/$/, '')}/files/glob?${params.toString()}`;
 	const headers: Record<string, string> = { Authorization: `Bearer ${apiKey}` };
 	if (sessionId) headers['X-Session-Id'] = sessionId;
 	const res = await fetch(url, { headers })
@@ -140,9 +143,12 @@ export const searchFiles = async (
 			console.error('open-terminal searchFiles error:', err);
 			return null;
 		});
-	const items = res?.entries ?? res?.results ?? null;
+	const items = res?.matches ?? res?.entries ?? res?.results ?? null;
 	if (!Array.isArray(items)) return null;
-	return items.map(normalizeFileEntry).filter((item) => item.name);
+	return items
+		.map(normalizeFileEntry)
+		.filter((item) => item.name)
+		.filter((item) => recursive || !item.name.replace(/^\/+/, '').includes('/'));
 };
 
 export const readFile = async (
