@@ -129,6 +129,14 @@
 		persistState();
 	};
 
+	const adjustPanelWidth = (delta: number) => {
+		if (activeTab !== 'files') {
+			return;
+		}
+		panelWidth = clampPanelWidth(panelWidth + delta);
+		persistState();
+	};
+
 	const stopPanelResize = () => {
 		if (stopPanelResizeListeners) {
 			stopPanelResizeListeners();
@@ -614,28 +622,64 @@
 							{$i18n.t(getTabLabel(activeTab))}
 						</div>
 
-						<div class="flex items-center gap-1">
-							<Tooltip
-								content={pinned ? $i18n.t('Unpin') : $i18n.t('Pin')}
-								placement="bottom"
-								interactive={true}
-								tippyOptions={sideMenuTooltipOptions}
-							>
-								<button
-									type="button"
-									class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-gray-500/60 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-100"
-									aria-label={pinned ? $i18n.t('Unpin') : $i18n.t('Pin')}
-									aria-pressed={pinned}
-									data-testid="hivemind-side-menu-pin"
-									on:click={() => setPinned(!pinned)}
+							<div class="flex items-center gap-1">
+								{#if activeTab === 'files'}
+									<Tooltip
+										content={$i18n.t('Narrow files panel')}
+										placement="bottom"
+										interactive={true}
+										tippyOptions={sideMenuTooltipOptions}
+									>
+										<button
+											type="button"
+											class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-gray-500/60 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-100"
+											aria-label={$i18n.t('Narrow files panel')}
+											data-testid="hivemind-side-menu-narrow"
+											on:click={() => adjustPanelWidth(-120)}
+										>
+											<ChevronRight className="size-4" strokeWidth="2.5" />
+										</button>
+									</Tooltip>
+
+									<Tooltip
+										content={$i18n.t('Widen files panel')}
+										placement="bottom"
+										interactive={true}
+										tippyOptions={sideMenuTooltipOptions}
+									>
+										<button
+											type="button"
+											class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-gray-500/60 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-100"
+											aria-label={$i18n.t('Widen files panel')}
+											data-testid="hivemind-side-menu-widen"
+											on:click={() => adjustPanelWidth(120)}
+										>
+											<ChevronLeft className="size-4" strokeWidth="2.5" />
+										</button>
+									</Tooltip>
+								{/if}
+
+								<Tooltip
+									content={pinned ? $i18n.t('Unpin') : $i18n.t('Pin')}
+									placement="bottom"
+									interactive={true}
+									tippyOptions={sideMenuTooltipOptions}
 								>
-									{#if pinned}
-										<PinSlash className="size-4" />
-									{:else}
-										<Pin className="size-4" />
-									{/if}
-								</button>
-							</Tooltip>
+									<button
+										type="button"
+										class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-gray-500/60 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-100"
+										aria-label={pinned ? $i18n.t('Unpin') : $i18n.t('Pin')}
+										aria-pressed={pinned}
+										data-testid="hivemind-side-menu-pin"
+										on:click={() => setPinned(!pinned)}
+									>
+										{#if pinned}
+											<PinSlash className="size-4" />
+										{:else}
+											<Pin className="size-4" />
+										{/if}
+									</button>
+								</Tooltip>
 
 							<Tooltip
 								content={$i18n.t('Close')}
