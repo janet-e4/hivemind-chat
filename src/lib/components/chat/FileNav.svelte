@@ -444,12 +444,12 @@
 
 		if (runId !== searchRunId) return;
 
-		if (endpointResults && endpointResults.length > 0) {
-			searchResults = sortEntries(
-				endpointResults
-					.map((entry) => normalizeSearchEntry(entry, basePath))
-					.filter((entry) => entry.name)
-			);
+		const normalizedEndpointResults = endpointResults
+			?.map((entry) => normalizeSearchEntry(entry, basePath))
+			.filter((entry) => entry.name);
+
+		if (normalizedEndpointResults && normalizedEndpointResults.length > 0) {
+			searchResults = sortEntries(normalizedEndpointResults);
 			searchLoading = false;
 			return;
 		}
