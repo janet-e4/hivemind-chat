@@ -68,6 +68,7 @@
 	let suppressNextAutoAttach = false;
 	let pendingFileNavPath: string | null = null;
 	let panelWidth = defaultFilesPanelWidth;
+	let panelWidthStyle = `${defaultFilesPanelWidth}px`;
 	let resizingPanel = false;
 	let panelElement: HTMLElement | null = null;
 	let resizeHandleElement: HTMLDivElement | null = null;
@@ -106,6 +107,8 @@
 
 	const getRenderedPanelWidth = () => panelElement?.getBoundingClientRect().width ?? panelWidth;
 
+	$: panelWidthStyle = `${activeTab === 'files' ? panelWidth : defaultPanelWidth}px`;
+
 	const selectTab = (tab: SideMenuTab) => {
 		activeTab = tab;
 		open = true;
@@ -138,6 +141,25 @@
 		}
 		panelWidth = clampPanelWidth(getRenderedPanelWidth() + delta);
 		persistState();
+	};
+
+	let suppressPanelWidthControlClick = false;
+
+	const handlePanelWidthControlPointer = (event: PointerEvent, delta: number) => {
+		event.preventDefault();
+		event.stopPropagation();
+		suppressPanelWidthControlClick = true;
+		adjustPanelWidth(delta);
+	};
+
+	const handlePanelWidthControlClick = (event: MouseEvent, delta: number) => {
+		event.preventDefault();
+		event.stopPropagation();
+		if (suppressPanelWidthControlClick) {
+			suppressPanelWidthControlClick = false;
+			return;
+		}
+		adjustPanelWidth(delta);
 	};
 
 	const stopPanelResize = () => {
@@ -614,7 +636,7 @@
 					'files'
 						? ''
 						: 'ml-2'}"
-					style={`width: ${getPanelWidth()}px;`}
+					style={`width: ${panelWidthStyle}; flex-basis: ${panelWidthStyle};`}
 					aria-label={$i18n.t(getTabLabel(activeTab))}
 					data-active-tab={activeTab}
 				>
@@ -639,7 +661,8 @@
 											class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-gray-500/60 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-100"
 											aria-label={$i18n.t('Narrow files panel')}
 											data-testid="hivemind-side-menu-narrow"
-											on:click={() => adjustPanelWidth(-120)}
+											on:pointerdown={(event) => handlePanelWidthControlPointer(event, -120)}
+											on:click={(event) => handlePanelWidthControlClick(event, -120)}
 										>
 											<ChevronRight className="size-4" strokeWidth="2.5" />
 										</button>
@@ -656,7 +679,8 @@
 											class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-gray-500/60 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-100"
 											aria-label={$i18n.t('Widen files panel')}
 											data-testid="hivemind-side-menu-widen"
-											on:click={() => adjustPanelWidth(120)}
+											on:pointerdown={(event) => handlePanelWidthControlPointer(event, 120)}
+											on:click={(event) => handlePanelWidthControlClick(event, 120)}
 										>
 											<ChevronLeft className="size-4" strokeWidth="2.5" />
 										</button>
