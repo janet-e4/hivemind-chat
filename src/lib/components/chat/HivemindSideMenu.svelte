@@ -69,6 +69,8 @@
 	let pendingFileNavPath: string | null = null;
 	let panelWidth = defaultFilesPanelWidth;
 	let resizingPanel = false;
+	let resizeHandleElement: HTMLDivElement | null = null;
+	let stopPanelResizeListeners: (() => void) | null = null;
 
 	type KnowledgeSearchItem = {
 		id?: string;
@@ -127,6 +129,13 @@
 		persistState();
 	};
 
+	const stopPanelResize = () => {
+		if (stopPanelResizeListeners) {
+			stopPanelResizeListeners();
+			stopPanelResizeListeners = null;
+		}
+	};
+
 	const startPanelResize = (event: PointerEvent | MouseEvent) => {
 		if (activeTab !== 'files' || resizingPanel) {
 			return;
@@ -134,6 +143,7 @@
 
 		event.preventDefault();
 		event.stopPropagation();
+		stopPanelResize();
 
 		resizingPanel = true;
 		const startX = event.clientX;
@@ -146,18 +156,47 @@
 		const stopResize = () => {
 			resizingPanel = false;
 			persistState();
-			window.removeEventListener('pointermove', handlePanelMove);
-			window.removeEventListener('pointerup', stopResize);
-			window.removeEventListener('pointercancel', stopResize);
-			window.removeEventListener('mousemove', handlePanelMove);
-			window.removeEventListener('mouseup', stopResize);
+			document.body.style.cursor = '';
+			document.body.style.userSelect = '';
+			stopPanelResize();
 		};
 
-		window.addEventListener('pointermove', handlePanelMove);
-		window.addEventListener('pointerup', stopResize);
-		window.addEventListener('pointercancel', stopResize);
-		window.addEventListener('mousemove', handlePanelMove);
-		window.addEventListener('mouseup', stopResize);
+		document.body.style.cursor = 'col-resize';
+		document.body.style.userSelect = 'none';
+
+		if ('pointerId' in event) {
+			resizeHandleElement?.setPointerCapture?.(event.pointerId);
+		}
+
+		document.addEventListener('pointermove', handlePanelMove, { capture: true });
+		document.addEventListener('pointerup', stopResize, { capture: true });
+		document.addEventListener('pointercancel', stopResize, { capture: true });
+		document.addEventListener('mousemove', handlePanelMove, { capture: true });
+		document.addEventListener('mouseup', stopResize, { capture: true });
+
+		stopPanelResizeListeners = () => {
+			document.removeEventListener('pointermove', handlePanelMove, { capture: true });
+			document.removeEventListener('pointerup', stopResize, { capture: true });
+			document.removeEventListener('pointercancel', stopResize, { capture: true });
+			document.removeEventListener('mousemove', handlePanelMove, { capture: true });
+			document.removeEventListener('mouseup', stopResize, { capture: true });
+		};
+	};
+
+	const resizeHandle = (node: HTMLDivElement) => {
+		resizeHandleElement = node;
+		node.addEventListener('pointerdown', startPanelResize, { capture: true });
+		node.addEventListener('mousedown', startPanelResize, { capture: true });
+
+		return {
+			destroy() {
+				node.removeEventListener('pointerdown', startPanelResize, { capture: true });
+				node.removeEventListener('mousedown', startPanelResize, { capture: true });
+				if (resizeHandleElement === node) {
+					resizeHandleElement = null;
+				}
+			}
+		};
 	};
 
 	const sideMenuTooltipOptions = {
@@ -410,6 +449,7 @@
 		if (corpusSearchTimer) {
 			clearTimeout(corpusSearchTimer);
 		}
+		stopPanelResize();
 		resizingPanel = false;
 	});
 
@@ -534,13 +574,15 @@
 				</div>
 			</div>
 
-			{#if open || pinned}
-				{#if activeTab === 'files'}
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<div
-						class="pointer-events-auto relative ml-2 flex w-5 shrink-0 cursor-col-resize items-center justify-center rounded-lg border border-blue-500/40 bg-white/90 shadow-sm transition hover:border-blue-500 dark:border-blue-500/40 dark:bg-gray-950/90 dark:hover:border-blue-400"
-						class:ring-2={resizingPanel}
-						class:ring-blue-500={resizingPanel}
+				{#if open || pinned}
+					{#if activeTab === 'files'}
+						<!-- svelte-ignore a11y-no-static-element-interactions -->
+						<div
+							bind:this={resizeHandleElement}
+							use:resizeHandle
+							class="pointer-events-auto relative ml-2 flex w-5 shrink-0 cursor-col-resize items-center justify-center rounded-lg border border-blue-500/40 bg-white/90 shadow-sm transition hover:border-blue-500 dark:border-blue-500/40 dark:bg-gray-950/90 dark:hover:border-blue-400"
+							class:ring-2={resizingPanel}
+							class:ring-blue-500={resizingPanel}
 						role="separator"
 						aria-orientation="vertical"
 						title={$i18n.t('Resize files panel')}
