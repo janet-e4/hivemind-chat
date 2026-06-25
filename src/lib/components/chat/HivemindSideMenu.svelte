@@ -127,8 +127,8 @@
 		persistState();
 	};
 
-	const startPanelResize = (event: PointerEvent) => {
-		if (activeTab !== 'files') {
+	const startPanelResize = (event: PointerEvent | MouseEvent) => {
+		if (activeTab !== 'files' || resizingPanel) {
 			return;
 		}
 
@@ -139,21 +139,25 @@
 		const startX = event.clientX;
 		const startWidth = panelWidth;
 
-		const handlePointerMove = (moveEvent: PointerEvent) => {
+		const handlePanelMove = (moveEvent: PointerEvent | MouseEvent) => {
 			panelWidth = clampPanelWidth(startWidth + (startX - moveEvent.clientX));
 		};
 
 		const stopResize = () => {
 			resizingPanel = false;
 			persistState();
-			window.removeEventListener('pointermove', handlePointerMove);
+			window.removeEventListener('pointermove', handlePanelMove);
 			window.removeEventListener('pointerup', stopResize);
 			window.removeEventListener('pointercancel', stopResize);
+			window.removeEventListener('mousemove', handlePanelMove);
+			window.removeEventListener('mouseup', stopResize);
 		};
 
-		window.addEventListener('pointermove', handlePointerMove);
+		window.addEventListener('pointermove', handlePanelMove);
 		window.addEventListener('pointerup', stopResize);
 		window.addEventListener('pointercancel', stopResize);
+		window.addEventListener('mousemove', handlePanelMove);
+		window.addEventListener('mouseup', stopResize);
 	};
 
 	const sideMenuTooltipOptions = {
@@ -542,6 +546,7 @@
 						title={$i18n.t('Resize files panel')}
 						data-testid="hivemind-side-menu-resize-handle"
 						on:pointerdown={startPanelResize}
+						on:mousedown={startPanelResize}
 					>
 						<div
 							class="h-16 w-1.5 rounded-full bg-blue-500/70 transition dark:bg-blue-400/70"
